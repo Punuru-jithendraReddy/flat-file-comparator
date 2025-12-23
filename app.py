@@ -260,8 +260,13 @@ if src_file and tgt_file:
                             
                             for col_to_remove in selected_src:
                                 temp_keys = [k for k in selected_src if k != col_to_remove]
+                                # FIX: Use 'inner' join and count unique OID matches to prevent >100% (Cartesian product)
                                 temp_merged = pd.merge(df1_n, df2_n, on=temp_keys, how='inner')
-                                temp_match_count = len(temp_merged)
+                                
+                                # Count unique source rows that found a match
+                                temp_match_count = temp_merged['_oid_src'].nunique()
+                                
+                                # Standard Percentage Logic
                                 temp_union = total_src_rows + total_tgt_rows - temp_match_count
                                 temp_pct = (temp_match_count / temp_union * 100) if temp_union else 0
                                 
@@ -271,9 +276,9 @@ if src_file and tgt_file:
                                         best_alt_col = col_to_remove
 
                             if best_alt_col:
-                                # Fix: Format recommendation as a proper table row, not a raw div
+                                # HTML Formatted Row (Green Background)
                                 reco_html_row = f"""
-                                <div class="report-row" style="background-color: #d4edda; border-bottom: 1px solid #c3e6cb;">
+                                <div class="report-row" style="background-color: #d4edda;">
                                     <div class="report-key" style="color: #155724;">💡 Recommendation</div>
                                     <div class="report-val" style="color: #155724;">
                                         Remove column <b>'{best_alt_col}'</b> to improve match to <b>{best_alt_pct:.2f}%</b>.
@@ -286,11 +291,10 @@ if src_file and tgt_file:
                             mismatch_html = '<div class="report-row"><div class="report-key">Details</div><div class="report-val status-good">No value mismatches found.</div></div>'
                         
                         elif match_pct == 0:
-                            # If we have a recommendation, add it at the top
+                            # 0% MATCH
                             if reco_html_row:
                                 mismatch_html += reco_html_row
                             
-                            # Fallback: Key Value Sampling
                             mismatch_html += """
                             <div class="report-row">
                                 <div class="report-key">Diagnosis</div>
@@ -316,7 +320,6 @@ if src_file and tgt_file:
                             if reco_html_row:
                                 mismatch_html += reco_html_row
                             
-                            # Value Mismatches
                             value_cols = [c for c in common_cols_list if c not in selected_src]
                             if value_cols and not in_both_idxs.empty:
                                 idx_src = in_both_idxs['_oid_src'].astype(int)
@@ -428,7 +431,6 @@ if src_file and tgt_file:
                         row = write_section(ws_sum, row, "Mismatch Diagnosis (Ranked by Impact)")
                         row = write_pair(ws_sum, row, "Status", diagnosis)
                         
-                        # Add mismatch table to Excel Summary
                         if 'mismatch_df' in locals() and not mismatch_df.empty:
                             row += 1
                             ws_sum.cell(row, 1, "Column with Differences").font = Font(bold=True, color="4472C4")

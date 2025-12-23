@@ -210,7 +210,7 @@ if src_file and tgt_file:
         else:
             c_sel, c_btn = st.columns([3, 1])
             with c_sel:
-                # UPDATED: 'default' parameter added to select all by default
+                # Default: Select ALL common columns
                 all_options = sorted(common_cols_list, key=str)
                 selected_src = st.multiselect(
                     "Select Key Columns (Unique Identifiers)", 
@@ -230,7 +230,7 @@ if src_file and tgt_file:
                 else:
                     with st.spinner("Comparing..."):
                         
-                        # Prepare Data
+                        # 1. PRIMARY MERGE (KEY MATCHING)
                         selected_tgt = [src_to_tgt_map[c] for c in selected_src]
                         df1_n = df1[selected_src].copy()
                         df2_n = df2[selected_tgt].copy()
@@ -249,6 +249,37 @@ if src_file and tgt_file:
                         only_tgt = df2.loc[merged[merged['_merge']=='right_only']['_oid_tgt'].dropna()].reindex(columns=selected_tgt)
                         in_both  = df1.loc[merged[merged['_merge']=='both']['_oid_src'].dropna()].reindex(columns=selected_src)
                         
+                        # 2. VALUE MISMATCH ANALYSIS (For matched rows only)
+                        mismatch_df = pd.DataFrame()
+                        value_cols = [c for c in common_cols_list if c not in selected_src]
+                        
+                        if value_cols and not in_both.empty:
+                            # Get indices of matched rows
+                            matched_indices = merged[merged['_merge'] == 'both']
+                            idx_src = matched_indices['_oid_src'].astype(int)
+                            idx_tgt = matched_indices['_oid_tgt'].astype(int)
+                            
+                            # Create comparison sub-frames (raw data)
+                            v_df1 = df1.loc[idx_src, value_cols].reset_index(drop=True)
+                            v_df2 = df2.loc[idx_tgt, value_cols].reset_index(drop=True)
+                            # Align target columns to source names
+                            v_df2.columns = [c if c in value_cols else src_to_tgt_map.get(c,c) for c in v_df2.columns] 
+                            v_df2 = v_df2[value_cols] # Ensure order
+
+                            mm_counts = []
+                            for col in value_cols:
+                                # Normalize comparison columns
+                                s1 = normalize_for_comparison(v_df1[col], opt_case_data, opt_trim)
+                                s2 = normalize_for_comparison(v_df2[col], opt_case_data, opt_trim)
+                                diff = (s1 != s2).sum()
+                                if diff > 0:
+                                    mm_counts.append({'Column': col, 'Mismatch Count': diff})
+                            
+                            mismatch_df = pd.DataFrame(mm_counts)
+                            if not mismatch_df.empty:
+                                mismatch_df = mismatch_df.sort_values(by='Mismatch Count', ascending=False)
+
+
                         # Stats
                         c_both = len(in_both)
                         c_src = len(only_src)
@@ -270,9 +301,23 @@ if src_file and tgt_file:
 
                         # Row 2: Diff Details
                         d1, d2, d3 = st.columns(3)
-                        d1.metric("Matched Rows", f"{c_both:,}", help="Rows found in both files based on keys")
+                        d1.metric("Matched Rows (Keys)", f"{c_both:,}", help="Rows found in both files based on selected keys")
                         d2.metric("Only in Source", f"{c_src:,}", delta="- Missing", delta_color="inverse")
                         d3.metric("Only in Target", f"{c_tgt:,}", delta="+ Added", delta_color="inverse")
+
+                        # Row 3: Column Mismatch Table
+                        if not mismatch_df.empty:
+                            st.divider()
+                            st.subheader("⚠️ Column Mismatch Contributors")
+                            st.caption("Among matched rows, these columns have data differences (High to Low):")
+                            st.dataframe(
+                                mismatch_df.set_index('Column'), 
+                                use_container_width=True,
+                                height=250
+                            )
+                        elif value_cols:
+                            st.divider()
+                            st.info("✅ No value differences found in non-key columns for matched rows.")
 
                         # --- GENERATE EXCEL (CORE LOGIC) ---
                         buffer = BytesIO()
@@ -311,7 +356,16 @@ if src_file and tgt_file:
                         r = write_kv("Rows Only in Source", f"{c_src:,}", r)
                         r = write_kv("Rows Only in Target", f"{c_tgt:,}", r)
 
-                        # 2. Detail Sheets
+                        # 2. Mismatch Contributors (NEW SHEET)
+                        if not mismatch_df.empty:
+                            ws_mm = wb.create_sheet("Mismatch Contributors")
+                            ws_mm.append(["Column Name", "Mismatch Count"])
+                            for _, row in mismatch_df.iterrows():
+                                ws_mm.append([row['Column'], row['Mismatch Count']])
+                            # Style header
+                            for cell in ws_mm[1]: cell.font = bold; cell.fill = header_fill
+
+                        # 3. Detail Sheets
                         if gen_col_sheet:
                             ws = wb.create_sheet("Column Names")
                             ws.append(["Column Name", "In Source", "In Target"])

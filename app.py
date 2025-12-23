@@ -210,9 +210,12 @@ if src_file and tgt_file:
         else:
             c_sel, c_btn = st.columns([3, 1])
             with c_sel:
+                # UPDATED: 'default' parameter added to select all by default
+                all_options = sorted(common_cols_list, key=str)
                 selected_src = st.multiselect(
                     "Select Key Columns (Unique Identifiers)", 
-                    options=sorted(common_cols_list, key=str)
+                    options=all_options,
+                    default=all_options
                 )
 
             with c_btn:
@@ -271,7 +274,7 @@ if src_file and tgt_file:
                         d2.metric("Only in Source", f"{c_src:,}", delta="- Missing", delta_color="inverse")
                         d3.metric("Only in Target", f"{c_tgt:,}", delta="+ Added", delta_color="inverse")
 
-                        # --- GENERATE EXCEL (CORE LOGIC RESTORED) ---
+                        # --- GENERATE EXCEL (CORE LOGIC) ---
                         buffer = BytesIO()
                         wb = Workbook()
                         wb.remove(wb.active)

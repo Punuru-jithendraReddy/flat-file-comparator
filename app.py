@@ -243,32 +243,6 @@ if src_file and tgt_file:
                         only_tgt = df2.loc[merged[merged['_merge']=='right_only']['_oid_tgt'].dropna()].reindex(columns=selected_tgt)
                         in_both  = df1.loc[merged[merged['_merge']=='both']['_oid_src'].dropna()].reindex(columns=selected_src)
                         
-                        # 2. MISMATCH ANALYSIS (Only if matches exist)
-                        mismatch_df = pd.DataFrame()
-                        value_cols = [c for c in common_cols_list if c not in selected_src]
-                        
-                        if value_cols and not in_both.empty:
-                            matched_indices = merged[merged['_merge'] == 'both']
-                            idx_src = matched_indices['_oid_src'].astype(int)
-                            idx_tgt = matched_indices['_oid_tgt'].astype(int)
-                            
-                            v_df1 = df1.loc[idx_src, value_cols].reset_index(drop=True)
-                            v_df2 = df2.loc[idx_tgt, value_cols].reset_index(drop=True)
-                            v_df2.columns = [c if c in value_cols else src_to_tgt_map.get(c,c) for c in v_df2.columns] 
-                            v_df2 = v_df2[value_cols]
-
-                            mm_counts = []
-                            for col in value_cols:
-                                s1 = normalize_for_comparison(v_df1[col], opt_case_data, opt_trim)
-                                s2 = normalize_for_comparison(v_df2[col], opt_case_data, opt_trim)
-                                diff = (s1 != s2).sum()
-                                if diff > 0:
-                                    mm_counts.append({'Column': col, 'Mismatch Count': diff})
-                            
-                            mismatch_df = pd.DataFrame(mm_counts)
-                            if not mismatch_df.empty:
-                                mismatch_df = mismatch_df.sort_values(by='Mismatch Count', ascending=False)
-
                         # Stats
                         c_both = len(in_both)
                         c_src = len(only_src)
@@ -277,6 +251,99 @@ if src_file and tgt_file:
                         match_pct = (c_both/total_union*100) if total_union else 0
                         diagnosis = get_diagnosis(match_pct)
                         diag_class = "status-good" if match_pct == 100 else ("status-bad" if match_pct < 80 else "status-neutral")
+                        
+                        # Initialize variables for mismatch display
+                        mismatch_html = ""
+                        key_mismatch_df = pd.DataFrame()
+                        
+                        # LOGIC BRANCH:
+                        # Case A: 0% Match -> Analyze Key Columns
+                        if match_pct == 0:
+                            key_analysis = []
+                            for col in selected_src:
+                                u_s = set(df1_n[col].unique())
+                                u_t = set(df2_n[col].unique())
+                                unique_s_only = len(u_s - u_t)
+                                unique_t_only = len(u_t - u_s)
+                                total_mismatch_val = unique_s_only + unique_t_only
+                                
+                                # Only add if there is a mismatch
+                                if total_mismatch_val > 0:
+                                    key_analysis.append({
+                                        'Column': col,
+                                        'Unique in Src (Not in Tgt)': unique_s_only,
+                                        'Unique in Tgt (Not in Src)': unique_t_only,
+                                        'Total Non-Common Values': total_mismatch_val
+                                    })
+                            
+                            key_mismatch_df = pd.DataFrame(key_analysis)
+                            if not key_mismatch_df.empty:
+                                # SORT BY IMPACT (High non-common values first)
+                                key_mismatch_df = key_mismatch_df.sort_values(by='Total Non-Common Values', ascending=False)
+                                
+                                mismatch_html = """
+                                <div class="report-row">
+                                    <div class="report-key">Critical Mismatch Diagnosis</div>
+                                    <div class="report-val" style="color:#d9534f">
+                                        ⚠️ <strong>No rows matched.</strong><br>
+                                        The table below ranks Key Columns by the number of unique values that <strong>do not exist</strong> in the other file.
+                                        <br><i>(Columns at the top are the most likely reason for the 0% match).</i>
+                                    </div>
+                                </div>
+                                <div class="report-row" style="background-color:#e9ecef; font-weight:bold;">
+                                    <div class="report-key">Column Name</div>
+                                    <div class="report-val">Unique Values NOT in overlap (Src / Tgt)</div>
+                                </div>
+                                """
+                                for _, r in key_mismatch_df.iterrows():
+                                    mismatch_html += f"""
+                                    <div class="report-row">
+                                        <div class="report-key">{r['Column']}</div>
+                                        <div class="report-val">
+                                            <strong>{r['Total Non-Common Values']:,}</strong> mismatches 
+                                            <span style="color:#666; font-size:0.9em">
+                                            ({r['Unique in Src (Not in Tgt)']} in Src only, {r['Unique in Tgt (Not in Src)']} in Tgt only)
+                                            </span>
+                                        </div>
+                                    </div>
+                                    """
+                            else:
+                                mismatch_html = '<div class="report-row"><div class="report-key">Note</div><div class="report-val">Keys appear consistent but no rows matched (Complex mismatch).</div></div>'
+
+                        # Case B: Partial Match -> Analyze Value Columns (Original Logic)
+                        else:
+                            mismatch_df = pd.DataFrame()
+                            value_cols = [c for c in common_cols_list if c not in selected_src]
+                            
+                            if value_cols and not in_both.empty:
+                                matched_indices = merged[merged['_merge'] == 'both']
+                                idx_src = matched_indices['_oid_src'].astype(int)
+                                idx_tgt = matched_indices['_oid_tgt'].astype(int)
+                                
+                                v_df1 = df1.loc[idx_src, value_cols].reset_index(drop=True)
+                                v_df2 = df2.loc[idx_tgt, value_cols].reset_index(drop=True)
+                                v_df2.columns = [c if c in value_cols else src_to_tgt_map.get(c,c) for c in v_df2.columns] 
+                                v_df2 = v_df2[value_cols]
+
+                                mm_counts = []
+                                for col in value_cols:
+                                    s1 = normalize_for_comparison(v_df1[col], opt_case_data, opt_trim)
+                                    s2 = normalize_for_comparison(v_df2[col], opt_case_data, opt_trim)
+                                    diff = (s1 != s2).sum()
+                                    if diff > 0:
+                                        mm_counts.append({'Column': col, 'Mismatch Count': diff})
+                                
+                                mismatch_df = pd.DataFrame(mm_counts)
+                                if not mismatch_df.empty:
+                                    mismatch_df = mismatch_df.sort_values(by='Mismatch Count', ascending=False)
+                                    
+                                    for _, r in mismatch_df.iterrows():
+                                        mismatch_html += f'<div class="report-row"><div class="report-key">{r["Column"]}</div><div class="report-val">{r["Mismatch Count"]:,} rows differ</div></div>'
+                                else:
+                                    mismatch_html = '<div class="report-row"><div class="report-key">Details</div><div class="report-val status-good">No value mismatches found in matched rows.</div></div>'
+                            else:
+                                 mismatch_html = '<div class="report-row"><div class="report-key">Details</div><div class="report-val">No other columns to compare.</div></div>'
+
 
                         # --- DISPLAY: HTML REPORT (EXCEL CLONE) ---
                         st.success("✅ Analysis Complete")
@@ -303,43 +370,7 @@ if src_file and tgt_file:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # TABLE 3: Diagnosis & Mismatches
-                        mismatch_html = ""
-                        
-                        if match_pct == 0:
-                            # --- 0% MATCH LOGIC UPDATE ---
-                            mismatch_html = """
-                            <div class="report-row">
-                                <div class="report-key">Critical Mismatch Diagnosis</div>
-                                <div class="report-val" style="color:#d9534f">
-                                    ⚠️ <strong>No rows matched.</strong> The selected 'Key Columns' contain completely different values.
-                                    <br><br>
-                                    <strong>Unique Value Sampling (Top 3):</strong>
-                                    <br>See below to spot formatting differences (e.g., '123' vs 'INV-123').
-                                </div>
-                            </div>
-                            """
-                            # Loop through selected key columns to show samples
-                            for col in selected_src:
-                                s_samp = ", ".join(df1_n[col].unique()[:3].astype(str))
-                                t_samp = ", ".join(df2_n[col].unique()[:3].astype(str))
-                                mismatch_html += f"""
-                                <div class="report-row" style="background-color:#fff3cd">
-                                    <div class="report-key">Column: {col}</div>
-                                    <div class="report-val">
-                                        <strong>Source:</strong> {s_samp}... <br>
-                                        <strong>Target:</strong> {t_samp}...
-                                    </div>
-                                </div>
-                                """
-                        elif not mismatch_df.empty:
-                            rows_html = ""
-                            for _, r in mismatch_df.iterrows():
-                                rows_html += f'<div class="report-row"><div class="report-key">{r["Column"]}</div><div class="report-val">{r["Mismatch Count"]:,} rows differ</div></div>'
-                            mismatch_html = rows_html
-                        else:
-                             mismatch_html = '<div class="report-row"><div class="report-key">Details</div><div class="report-val status-good">No value mismatches found in matched rows.</div></div>'
-
+                        # TABLE 3: Diagnosis
                         st.markdown(f"""
                         <div class="report-container">
                             <div class="report-header">Mismatch Diagnosis (Ranked by Impact)</div>
@@ -348,7 +379,7 @@ if src_file and tgt_file:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # --- GENERATE EXCEL (EXACT MATCH) ---
+                        # --- GENERATE EXCEL ---
                         buffer = BytesIO()
                         wb = Workbook()
                         wb.remove(wb.active)
@@ -398,7 +429,16 @@ if src_file and tgt_file:
                         row = write_pair(ws_sum, row, "Status", diagnosis)
                         
                         # Add mismatch table to Excel Summary
-                        if not mismatch_df.empty:
+                        if match_pct == 0 and not key_mismatch_df.empty:
+                             row += 1
+                             ws_sum.cell(row, 1, "Key Column Mismatches").font = Font(bold=True, color="4472C4")
+                             ws_sum.cell(row, 2, "Unique Values NOT in overlap").font = Font(bold=True, color="4472C4")
+                             row += 1
+                             for _, r in key_mismatch_df.iterrows():
+                                 ws_sum.cell(row, 1, r['Column'])
+                                 ws_sum.cell(row, 2, f"{r['Total Non-Common Values']} mismatches")
+                                 row += 1
+                        elif match_pct > 0 and 'mismatch_df' in locals() and not mismatch_df.empty:
                             row += 1
                             ws_sum.cell(row, 1, "Column with Differences").font = Font(bold=True, color="4472C4")
                             ws_sum.cell(row, 2, "Count of Rows").font = Font(bold=True, color="4472C4")

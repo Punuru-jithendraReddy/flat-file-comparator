@@ -18,7 +18,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. CSS STYLING (Green Button, Blue Tags, Profile) ---
+# --- 2. CSS STYLING (Green Button, Blue Tags, Profile, Alignment) ---
 st.markdown("""
 <style>
     /* 1. GREEN BUTTON (Strict) */
@@ -43,13 +43,14 @@ st.markdown("""
         color: white !important;
     }
 
-    /* 3. METRIC BOXES */
+    /* 3. METRIC BOXES - Better Alignment */
     div[data-testid="stMetric"] {
-        background-color: #f8f9fa;
+        background-color: #ffffff;
         padding: 15px;
         border-radius: 8px;
-        border: 1px solid #dee2e6;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        height: 100%; /* Force equal height */
     }
 
     /* 4. FOOTER */
@@ -61,10 +62,21 @@ st.markdown("""
         text-align: center;
         padding: 10px;
         font-size: 14px;
-        z-index: 99999; /* Force on top */
+        z-index: 99999;
     }
     .footer a { color: #63b3ed; text-decoration: none; font-weight: bold; }
     
+    /* SECTION HEADERS (To match Excel look on UI) */
+    .section-header {
+        color: #2c3e50;
+        font-weight: 700;
+        font-size: 1.2rem;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid #4472C4; /* Excel Blue */
+    }
+
     /* Adjust padding for footer */
     .block-container { padding-bottom: 80px; }
 </style>
@@ -130,10 +142,10 @@ def smart_read_file(file_obj, header_row):
         return None
 
 def get_diagnosis(pct):
-    if pct == 100: return "✅ Perfect Match"
-    elif pct >= 95: return "🟢 High Accuracy"
-    elif pct >= 80: return "🟡 Moderate Variance"
-    else: return "🔴 Critical Mismatch"
+    if pct == 100: return "Files are identical."
+    elif pct >= 95: return "High Accuracy (Minor Differences)"
+    elif pct >= 80: return "Moderate Variance"
+    else: return "Critical Mismatch"
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
@@ -254,21 +266,17 @@ if src_file and tgt_file:
                         value_cols = [c for c in common_cols_list if c not in selected_src]
                         
                         if value_cols and not in_both.empty:
-                            # Get indices of matched rows
                             matched_indices = merged[merged['_merge'] == 'both']
                             idx_src = matched_indices['_oid_src'].astype(int)
                             idx_tgt = matched_indices['_oid_tgt'].astype(int)
                             
-                            # Create comparison sub-frames (raw data)
                             v_df1 = df1.loc[idx_src, value_cols].reset_index(drop=True)
                             v_df2 = df2.loc[idx_tgt, value_cols].reset_index(drop=True)
-                            # Align target columns to source names
                             v_df2.columns = [c if c in value_cols else src_to_tgt_map.get(c,c) for c in v_df2.columns] 
-                            v_df2 = v_df2[value_cols] # Ensure order
+                            v_df2 = v_df2[value_cols]
 
                             mm_counts = []
                             for col in value_cols:
-                                # Normalize comparison columns
                                 s1 = normalize_for_comparison(v_df1[col], opt_case_data, opt_trim)
                                 s2 = normalize_for_comparison(v_df2[col], opt_case_data, opt_trim)
                                 diff = (s1 != s2).sum()
@@ -290,82 +298,113 @@ if src_file and tgt_file:
 
                         # --- DISPLAY ON SCREEN SUMMARY ---
                         st.success("✅ Comparison Complete!")
-                        st.subheader("📊 Executive Summary")
                         
-                        # Row 1: Source vs Target Totals
-                        m1, m2, m3, m4 = st.columns(4)
-                        m1.metric("Source File Rows", f"{total_src_rows:,}")
-                        m2.metric("Target File Rows", f"{total_tgt_rows:,}")
-                        m3.metric("Match Percentage", f"{match_pct:.2f}%")
-                        m4.metric("Diagnosis", diagnosis)
+                        # Section 1: File Information
+                        st.markdown('<div class="section-header">File Information</div>', unsafe_allow_html=True)
+                        f1, f2, f3, f4 = st.columns(4)
+                        f1.metric("Source File", src_file.name)
+                        f2.metric("Source Total Rows", f"{total_src_rows:,}")
+                        f3.metric("Target File", tgt_file.name)
+                        f4.metric("Target Total Rows", f"{total_tgt_rows:,}")
 
-                        # Row 2: Diff Details
-                        d1, d2, d3 = st.columns(3)
-                        d1.metric("Matched Rows (Keys)", f"{c_both:,}", help="Rows found in both files based on selected keys")
-                        d2.metric("Only in Source", f"{c_src:,}", delta="- Missing", delta_color="inverse")
-                        d3.metric("Only in Target", f"{c_tgt:,}", delta="+ Added", delta_color="inverse")
+                        # Section 2: Comparison Statistics
+                        st.markdown('<div class="section-header">Comparison Statistics</div>', unsafe_allow_html=True)
+                        s1, s2, s3, s4 = st.columns(4)
+                        s1.metric("Rows in BOTH (Match)", f"{c_both:,}")
+                        s2.metric("Rows ONLY in Source", f"{c_src:,}", delta="- Missing", delta_color="inverse")
+                        s3.metric("Rows ONLY in Target", f"{c_tgt:,}", delta="+ New", delta_color="inverse")
+                        s4.metric("Match Percentage", f"{match_pct:.2f}%")
 
-                        # Row 3: Column Mismatch Table
+                        # Section 3: Status
+                        st.markdown('<div class="section-header">Mismatch Diagnosis</div>', unsafe_allow_html=True)
+                        st.info(f"**Status:** {diagnosis}")
+
+                        # Section 4: Mismatch Table (if exists)
                         if not mismatch_df.empty:
-                            st.divider()
-                            st.subheader("⚠️ Column Mismatch Contributors")
-                            st.caption("Among matched rows, these columns have data differences (High to Low):")
+                            st.markdown('<div class="section-header">Mismatch Diagnosis (Ranked by Impact)</div>', unsafe_allow_html=True)
                             st.dataframe(
                                 mismatch_df.set_index('Column'), 
                                 use_container_width=True,
                                 height=250
                             )
-                        elif value_cols:
-                            st.divider()
-                            st.info("✅ No value differences found in non-key columns for matched rows.")
 
-                        # --- GENERATE EXCEL (CORE LOGIC) ---
+                        # --- GENERATE EXCEL (MATCHING IMAGE FORMAT) ---
                         buffer = BytesIO()
                         wb = Workbook()
                         wb.remove(wb.active)
 
                         # Styles
-                        title_font = Font(size=14, bold=True, color="FFFFFF")
-                        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-                        bold = Font(bold=True)
+                        header_font = Font(name='Calibri', size=11, bold=True, color="FFFFFF")
+                        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid") # Excel Blue
+                        
+                        def write_section_header(ws, r, title):
+                            cell = ws.cell(row=r, column=1, value=title)
+                            cell.font = header_font
+                            cell.fill = header_fill
+                            # Merge across A and B for header look
+                            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+                            return r + 1
+
+                        def write_kv_pair(ws, r, key, value):
+                            # Column A: Bold Key
+                            c1 = ws.cell(row=r, column=1, value=key)
+                            c1.font = Font(bold=True)
+                            # Column B: Value
+                            c2 = ws.cell(row=r, column=2, value=value)
+                            c2.alignment = Alignment(horizontal='left')
+                            return r + 1
 
                         # 1. Executive Summary Sheet
                         ws_sum = wb.create_sheet("Executive Summary")
-                        ws_sum.column_dimensions['A'].width = 30; ws_sum.column_dimensions['B'].width = 50
-                        r = 1
-                        def write_kv(k, v, r, is_header=False):
-                            if is_header:
-                                cell = ws_sum.cell(row=r, column=1, value=k)
-                                cell.font = title_font; cell.fill = header_fill
-                                ws_sum.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
-                            else:
-                                ws_sum.cell(row=r, column=1, value=k).font = bold
-                                ws_sum.cell(row=r, column=2, value=v)
-                            return r + 1
+                        ws_sum.column_dimensions['A'].width = 35
+                        ws_sum.column_dimensions['B'].width = 80
+                        
+                        row_ptr = 1
+                        
+                        # Section: File Information
+                        row_ptr = write_section_header(ws_sum, row_ptr, "File Information")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Source File Name", src_file.name)
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Source Total Rows", f"{total_src_rows:,}")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Target File Name", tgt_file.name)
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Target Total Rows", f"{total_tgt_rows:,}")
+                        row_ptr += 1 # Empty row
 
-                        r = write_kv("File Information", "", r, True)
-                        r = write_kv("Source File", src_file.name, r)
-                        r = write_kv("Target File", tgt_file.name, r)
-                        r += 1
-                        r = write_kv("Comparison Statistics", "", r, True)
-                        r = write_kv("Diagnosis", diagnosis, r)
-                        r = write_kv("Match Percentage", f"{match_pct:.2f}%", r)
-                        r = write_kv("Source Total Rows", f"{total_src_rows:,}", r)
-                        r = write_kv("Target Total Rows", f"{total_tgt_rows:,}", r)
-                        r = write_kv("Matched Rows", f"{c_both:,}", r)
-                        r = write_kv("Rows Only in Source", f"{c_src:,}", r)
-                        r = write_kv("Rows Only in Target", f"{c_tgt:,}", r)
+                        # Section: Comparison Statistics
+                        row_ptr = write_section_header(ws_sum, row_ptr, "Comparison Statistics")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Rows in BOTH Files (Match)", f"{c_both:,}")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Rows ONLY in Source", f"{c_src:,}")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Rows ONLY in Target", f"{c_tgt:,}")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Match Percentage", f"{match_pct:.2f}%")
+                        row_ptr += 1
 
-                        # 2. Mismatch Contributors (NEW SHEET)
+                        # Section: Matching Configuration
+                        row_ptr = write_section_header(ws_sum, row_ptr, "Matching Configuration")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Key Columns Selected", ", ".join(selected_src))
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Excluded Columns", "None") # Logic uses all common, explicit exclude not in UI yet
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Case Insensitive Data", str(opt_case_data))
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Trim Whitespace", str(opt_trim))
+                        row_ptr += 1
+
+                        # Section: Mismatch Diagnosis
+                        row_ptr = write_section_header(ws_sum, row_ptr, "Mismatch Diagnosis (Ranked by Impact)")
+                        row_ptr = write_kv_pair(ws_sum, row_ptr, "Status", diagnosis)
+                        
+                        # 2. Mismatch Contributors (Sorted High to Low)
                         if not mismatch_df.empty:
                             ws_mm = wb.create_sheet("Mismatch Contributors")
-                            ws_mm.append(["Column Name", "Mismatch Count"])
-                            for _, row in mismatch_df.iterrows():
+                            ws_mm.column_dimensions['A'].width = 40
+                            ws_mm.column_dimensions['B'].width = 20
+                            
+                            # Header
+                            h1 = ws_mm.cell(1, 1, "Column Name")
+                            h2 = ws_mm.cell(1, 2, "Mismatch Count")
+                            h1.font = header_font; h1.fill = header_fill
+                            h2.font = header_font; h2.fill = header_fill
+                            
+                            for idx, row in mismatch_df.iterrows():
                                 ws_mm.append([row['Column'], row['Mismatch Count']])
-                            # Style header
-                            for cell in ws_mm[1]: cell.font = bold; cell.fill = header_fill
 
-                        # 3. Detail Sheets
+                        # 3. Detail Sheets (Core Logic Preserved)
                         if gen_col_sheet:
                             ws = wb.create_sheet("Column Names")
                             ws.append(["Column Name", "In Source", "In Target"])
@@ -385,7 +424,7 @@ if src_file and tgt_file:
                             for c in selected_src:
                                 s_v = set(df1_n[c].dropna()[df1_n[c]!=''])
                                 t_v = set(df2_n[c].dropna()[df2_n[c]!=''])
-                                ws.cell(1, col_idx, c).font = bold
+                                ws.cell(1, col_idx, c).font = Font(bold=True)
                                 ws.cell(2, col_idx, "Only Source"); ws.cell(2, col_idx+1, "Only Target")
                                 for i, v in enumerate(sorted(s_v - t_v), 3): ws.cell(i, col_idx, v)
                                 for i, v in enumerate(sorted(t_v - s_v), 3): ws.cell(i, col_idx+1, v)
@@ -397,7 +436,7 @@ if src_file and tgt_file:
                             col_idx = 1
                             for c in nums:
                                 tgt_c = src_to_tgt_map.get(c,c)
-                                ws.cell(1, col_idx, c).font = bold
+                                ws.cell(1, col_idx, c).font = Font(bold=True)
                                 ws.cell(2, col_idx, "Stat"); ws.cell(2, col_idx+1, "Src"); ws.cell(2, col_idx+2, "Tgt")
                                 for i, s in enumerate(['count','sum','mean','min','max'], 3):
                                     ws.cell(i, col_idx, s)

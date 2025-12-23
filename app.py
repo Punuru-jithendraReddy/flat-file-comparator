@@ -1,37 +1,76 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
 import datetime
 import time
 
-# --- 1. CONFIG & CUSTOM COLORS ---
-st.set_page_config(page_title="Flat File Comparison Tool", layout="wide")
+# --- 1. CONFIGURATION & SETUP ---
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    HAS_OPENPYXL = True
+except Exception:
+    HAS_OPENPYXL = False
 
-# Inject Custom CSS for Green Button and Blue Tags
+st.set_page_config(
+    page_title="Flat File Comparison Tool", 
+    page_icon="📊",
+    layout="wide"
+)
+
+# --- 2. CSS STYLING (Green Button, Blue Tags, Profile) ---
 st.markdown("""
-    <style>
-    /* 1. Make the 'Run Comparison' button GREEN */
+<style>
+    /* 1. GREEN BUTTON (Strict) */
     div.stButton > button {
         background-color: #28a745 !important; 
         color: white !important;
         border-color: #28a745 !important;
         font-weight: bold !important;
+        width: 100%;
+        height: 50px;
+        font-size: 18px !important;
     }
     div.stButton > button:hover {
         background-color: #218838 !important;
         border-color: #1e7e34 !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
 
-    /* 2. Make the Multiselect (Key Columns) tags BLUE */
+    /* 2. BLUE MULTISELECT TAGS (Strict) */
     span[data-baseweb="tag"] {
         background-color: #007bff !important;
+        color: white !important;
     }
-    </style>
+
+    /* 3. METRIC BOXES */
+    div[data-testid="stMetric"] {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* 4. FOOTER */
+    .footer {
+        position: fixed;
+        left: 0; bottom: 0; width: 100%;
+        background-color: #1a202c;
+        color: white;
+        text-align: center;
+        padding: 10px;
+        font-size: 14px;
+        z-index: 99999; /* Force on top */
+    }
+    .footer a { color: #63b3ed; text-decoration: none; font-weight: bold; }
+    
+    /* Adjust padding for footer */
+    .block-container { padding-bottom: 80px; }
+</style>
 """, unsafe_allow_html=True)
 
-# --- 2. CORE LOGIC ---
+# --- 3. LOGIC FUNCTIONS ---
 
 def normalize_for_comparison(series, is_case_insensitive_data, should_trim_whitespace):
     """Standardizes data for comparison."""
@@ -63,8 +102,6 @@ def smart_read_file(file_obj, header_row):
             
             # Scan for the best sheet
             best_df, max_rows = None, -1
-            prog_text = st.empty()
-            prog_text.caption(f"Scanning {len(xls.sheet_names)} sheets in {file_obj.name}...")
             
             for sheet in xls.sheet_names:
                 try:
@@ -74,7 +111,6 @@ def smart_read_file(file_obj, header_row):
                         best_df = temp_df
                 except: continue
             
-            prog_text.empty() # Clear message
             return best_df
 
         elif file_ext == 'json': return pd.read_json(file_obj)
@@ -93,7 +129,35 @@ def smart_read_file(file_obj, header_row):
         st.error(f"Failed to read {file_obj.name}. Error: {e}")
         return None
 
-# --- 3. UI LAYOUT ---
+def get_diagnosis(pct):
+    if pct == 100: return "✅ Perfect Match"
+    elif pct >= 95: return "🟢 High Accuracy"
+    elif pct >= 80: return "🟡 Moderate Variance"
+    else: return "🔴 Critical Mismatch"
+
+# --- 4. SIDEBAR ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/10891/10891404.png", width=70)
+    st.title("Settings")
+    
+    st.markdown("### 🛠 Options")
+    opt_case_cols = st.checkbox("Case-Insensitive Columns", value=True)
+    opt_case_data = st.checkbox("Case-Insensitive Data", value=True)
+    opt_trim = st.checkbox("Trim Whitespace", value=True)
+    
+    st.markdown("### 📑 Excel Output")
+    gen_row_sheet = st.checkbox("Row Comparison", value=True)
+    gen_col_sheet = st.checkbox("Column Analysis", value=True)
+    gen_uniq_sheet = st.checkbox("Unique Values", value=True)
+    gen_stats_sheet = st.checkbox("Summary Stats", value=True)
+
+    st.markdown("---")
+    st.markdown("### 👨‍💻 Developer")
+    st.markdown("**Jithendra Reddy**")
+    st.markdown("📧 [Email](mailto:jithendrareddypunuru@gmail.com)")
+    st.markdown("🔗 [LinkedIn](https://www.linkedin.com/in/jithendrareddypunuru/)")
+
+# --- 5. MAIN UI ---
 
 st.title("📂 Flat File Comparison Tool")
 st.markdown("Upload two files below to generate a detailed comparison report.")
@@ -110,37 +174,19 @@ with col_input2:
     tgt_file = st.file_uploader("Upload Target", type=["xlsx", "xls", "csv", "tsv", "json", "xml"], key="tgt")
     tgt_header = st.number_input("Header Row (Target)", min_value=1, value=1, key="h2") - 1
 
-# B. Configuration
-st.divider()
-with st.expander("⚙️ Advanced Settings", expanded=True):
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown("**Matching Logic**")
-        opt_case_cols = st.checkbox("Case-Insensitive Columns", value=True)
-        opt_case_data = st.checkbox("Case-Insensitive Data", value=True)
-        opt_trim = st.checkbox("Trim Whitespace", value=True)
-    with c2:
-        st.markdown("**Output Sheets**")
-        gen_row_sheet = st.checkbox("Row Comparison", value=True)
-        gen_col_sheet = st.checkbox("Column Analysis", value=True)
-    with c3:
-        st.markdown("**Stats**")
-        gen_uniq_sheet = st.checkbox("Unique Values", value=True)
-        gen_stats_sheet = st.checkbox("Summary Stats", value=True)
-
-# --- 4. EXECUTION ---
-
+# B. Execution
 if src_file and tgt_file:
     st.divider()
-    st.subheader("📋 Column Selection")
     
-    src_file.seek(0); tgt_file.seek(0)
-    
-    with st.spinner("Analyzing files..."):
-        df1 = smart_read_file(src_file, src_header)
-        df2 = smart_read_file(tgt_file, tgt_header)
+    # Read Files
+    df1 = smart_read_file(src_file, src_header)
+    df2 = smart_read_file(tgt_file, tgt_header)
 
     if df1 is not None and df2 is not None:
+        # Get Total Counts immediately
+        total_src_rows = len(df1)
+        total_tgt_rows = len(df2)
+
         # Map Columns
         src_cols = df1.columns
         tgt_cols = df2.columns
@@ -162,17 +208,23 @@ if src_file and tgt_file:
         if not common_cols_list:
             st.error("❌ No common columns found.")
         else:
-            selected_src = st.multiselect(
-                "Select Key Columns (Unique Identifiers)", 
-                options=sorted(common_cols_list, key=str),
-                default=sorted(common_cols_list, key=str)
-            )
+            c_sel, c_btn = st.columns([3, 1])
+            with c_sel:
+                selected_src = st.multiselect(
+                    "Select Key Columns (Unique Identifiers)", 
+                    options=sorted(common_cols_list, key=str)
+                )
 
-            if st.button("🚀 Run Comparison", type="primary"):
+            with c_btn:
+                st.write("") # Spacer
+                st.write("") 
+                # This button will be GREEN due to CSS
+                run_btn = st.button("🚀 Run Comparison")
+
+            if run_btn:
                 if not selected_src:
                     st.error("Select at least one column.")
                 else:
-                    start_time = time.time()
                     with st.spinner("Comparing..."):
                         
                         # Prepare Data
@@ -195,31 +247,31 @@ if src_file and tgt_file:
                         in_both  = df1.loc[merged[merged['_merge']=='both']['_oid_src'].dropna()].reindex(columns=selected_src)
                         
                         # Stats
-                        c_both, c_src, c_tgt = len(in_both), len(only_src), len(only_tgt)
-                        total = c_both + c_src + c_tgt
-                        match_pct = (c_both/total*100) if total else 0
+                        c_both = len(in_both)
+                        c_src = len(only_src)
+                        c_tgt = len(only_tgt)
+                        total_union = c_both + c_src + c_tgt
+                        match_pct = (c_both/total_union*100) if total_union else 0
+                        diagnosis = get_diagnosis(match_pct)
 
                         # --- DISPLAY ON SCREEN SUMMARY ---
                         st.success("✅ Comparison Complete!")
-                        st.divider()
                         st.subheader("📊 Executive Summary")
                         
-                        # Metrics Row
+                        # Row 1: Source vs Target Totals
                         m1, m2, m3, m4 = st.columns(4)
-                        m1.metric("Total Rows", f"{total:,}")
-                        m2.metric("Match Percentage", f"{match_pct:.2f}%")
-                        m3.metric("Only in Source", f"{c_src:,}", delta_color="inverse")
-                        m4.metric("Only in Target", f"{c_tgt:,}", delta_color="inverse")
+                        m1.metric("Source File Rows", f"{total_src_rows:,}")
+                        m2.metric("Target File Rows", f"{total_tgt_rows:,}")
+                        m3.metric("Match Percentage", f"{match_pct:.2f}%")
+                        m4.metric("Diagnosis", diagnosis)
 
-                        # Preview Data Table
-                        st.write("#### Mismatch Preview")
-                        preview_data = pd.DataFrame({
-                            "Category": ["Rows Only in Source", "Rows Only in Target", "Matches"],
-                            "Count": [c_src, c_tgt, c_both]
-                        })
-                        st.bar_chart(preview_data.set_index("Category"))
+                        # Row 2: Diff Details
+                        d1, d2, d3 = st.columns(3)
+                        d1.metric("Matched Rows", f"{c_both:,}", help="Rows found in both files based on keys")
+                        d2.metric("Only in Source", f"{c_src:,}", delta="- Missing", delta_color="inverse")
+                        d3.metric("Only in Target", f"{c_tgt:,}", delta="+ Added", delta_color="inverse")
 
-                        # --- GENERATE EXCEL ---
+                        # --- GENERATE EXCEL (CORE LOGIC RESTORED) ---
                         buffer = BytesIO()
                         wb = Workbook()
                         wb.remove(wb.active)
@@ -248,7 +300,10 @@ if src_file and tgt_file:
                         r = write_kv("Target File", tgt_file.name, r)
                         r += 1
                         r = write_kv("Comparison Statistics", "", r, True)
+                        r = write_kv("Diagnosis", diagnosis, r)
                         r = write_kv("Match Percentage", f"{match_pct:.2f}%", r)
+                        r = write_kv("Source Total Rows", f"{total_src_rows:,}", r)
+                        r = write_kv("Target Total Rows", f"{total_tgt_rows:,}", r)
                         r = write_kv("Matched Rows", f"{c_both:,}", r)
                         r = write_kv("Rows Only in Source", f"{c_src:,}", r)
                         r = write_kv("Rows Only in Target", f"{c_tgt:,}", r)
@@ -263,7 +318,6 @@ if src_file and tgt_file:
                         if gen_row_sheet:
                             ws = wb.create_sheet("Row Comparison")
                             ws.append(['Status'] + selected_src)
-                            # Limit preview for speed if needed, but writing full here
                             for _, row in only_src.iterrows(): ws.append(['Only in Source'] + row.astype(str).tolist())
                             for _, row in only_tgt.iterrows(): ws.append(['Only in Target'] + row.astype(str).tolist())
                             for _, row in in_both.iterrows(): ws.append(['In Both'] + row.astype(str).tolist())
@@ -305,3 +359,12 @@ if src_file and tgt_file:
                             file_name=f"Comparison_Report_{datetime.datetime.now().strftime('%H%M%S')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
+
+# --- 6. FOOTER ---
+st.markdown("""
+<div class="footer">
+    Developed by <strong>Jithendra Reddy</strong> | 
+    <a href="mailto:jithendrareddypunuru@gmail.com">jithendrareddypunuru@gmail.com</a> | 
+    <a href="https://www.linkedin.com/in/jithendrareddypunuru/" target="_blank">LinkedIn Profile</a>
+</div>
+""", unsafe_allow_html=True)

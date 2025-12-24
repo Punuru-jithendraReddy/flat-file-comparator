@@ -497,16 +497,44 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                             ws.cell(r,2,v).alignment = Alignment(horizontal='left')
                             return r + 1
 
+                        # Sheet 1: Executive Summary
                         ws_sum = wb.create_sheet("Executive Summary")
-                        ws_sum.column_dimensions['A'].width = 35; ws_sum.column_dimensions['B'].width = 80
+                        ws_sum.column_dimensions['A'].width = 35
+                        ws_sum.column_dimensions['B'].width = 80
+                        
                         row = 1
                         row = write_section(ws_sum, row, "File Information")
-                        row = write_pair(ws_sum, row, "Source", f"{src_file.name} (Sheet: {src_sheet_name})")
-                        row = write_pair(ws_sum, row, "Target", f"{tgt_file.name} (Sheet: {tgt_sheet_name})")
+                        row = write_pair(ws_sum, row, "Source File Name", f"{src_file.name} (Sheet: {src_sheet_name})")
+                        row = write_pair(ws_sum, row, "Source Total Rows", f"{total_src_rows:,}")
+                        row = write_pair(ws_sum, row, "Target File Name", f"{tgt_file.name} (Sheet: {tgt_sheet_name})")
+                        row = write_pair(ws_sum, row, "Target Total Rows", f"{total_tgt_rows:,}")
                         row += 1
-                        row = write_section(ws_sum, row, "Stats")
-                        row = write_pair(ws_sum, row, "Matched", f"{c_both:,}")
-                        row = write_pair(ws_sum, row, "Match %", f"{match_pct:.2f}%")
+
+                        row = write_section(ws_sum, row, "Comparison Statistics")
+                        row = write_pair(ws_sum, row, "Rows in BOTH Files (Match)", f"{c_both:,}")
+                        row = write_pair(ws_sum, row, "Rows ONLY in Source", f"{c_src:,}")
+                        row = write_pair(ws_sum, row, "Rows ONLY in Target", f"{c_tgt:,}")
+                        row = write_pair(ws_sum, row, "Match Percentage", f"{match_pct:.2f}%")
+                        row += 1
+
+                        row = write_section(ws_sum, row, "Matching Configuration")
+                        row = write_pair(ws_sum, row, "Key Columns Selected", ", ".join(selected_src))
+                        row = write_pair(ws_sum, row, "Case Insensitive Data", str(opt_case_data))
+                        row = write_pair(ws_sum, row, "Trim Whitespace", str(opt_trim))
+                        row += 1
+
+                        row = write_section(ws_sum, row, "Mismatch Diagnosis (Ranked by Impact)")
+                        row = write_pair(ws_sum, row, "Status", diagnosis)
+                        
+                        if 'mismatch_df' in locals() and not mismatch_df.empty:
+                            row += 1
+                            ws_sum.cell(row, 1, "Column with Differences").font = Font(bold=True, color="4472C4")
+                            ws_sum.cell(row, 2, "Count of Rows").font = Font(bold=True, color="4472C4")
+                            row += 1
+                            for _, r in mismatch_df.iterrows():
+                                ws_sum.cell(row, 1, r['Column'])
+                                ws_sum.cell(row, 2, r['Mismatch Count'])
+                                row += 1
 
                         if gen_col_sheet:
                             ws = wb.create_sheet("Column Names")
@@ -527,6 +555,7 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                             for c in selected_src:
                                 ws.cell(1, col_idx, c).font = Font(bold=True)
                                 s_v = set(df1_n[c].dropna()[df1_n[c]!='']); t_v = set(df2_n[c].dropna()[df2_n[c]!=''])
+                                ws.cell(2, col_idx, "Only Source"); ws.cell(2, col_idx+1, "Only Target")
                                 for i, v in enumerate(sorted(s_v - t_v), 3): ws.cell(i, col_idx, v)
                                 for i, v in enumerate(sorted(t_v - s_v), 3): ws.cell(i, col_idx+1, v)
                                 col_idx += 3
@@ -538,6 +567,7 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                             for c in nums:
                                 tgt_c = src_to_tgt_map.get(c,c)
                                 ws.cell(1, col_idx, c).font = Font(bold=True)
+                                ws.cell(2, col_idx, "Stat"); ws.cell(2, col_idx+1, "Src"); ws.cell(2, col_idx+2, "Tgt")
                                 for i, s in enumerate(['count','sum','mean','min','max'], 3):
                                     ws.cell(i, col_idx, s)
                                     try: ws.cell(i, col_idx+1, getattr(df1[c], s)())

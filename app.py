@@ -580,7 +580,7 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         # 2. Value Comparison Columns (Common columns checked for differences)
                         val_cols_list = [c for c in common_cols_list if c not in selected_src]
                         val_cols_str = ", ".join(val_cols_list) if val_cols_list else "All columns used as Keys"
-                        row = write_pair(ws_sum, row, "Value Comparison Columns", val_cols_str)
+                        row = write_pair(ws_sum, row, "Columns skiped for Comparison ", val_cols_str)
                         # ------------------------------------------------------------------
 
                         row = write_pair(ws_sum, row, "Case Insensitive Data", str(opt_case_data))

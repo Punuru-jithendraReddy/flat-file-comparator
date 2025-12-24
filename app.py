@@ -225,6 +225,7 @@ with st.expander("ℹ️ Click here for Instructions"):
     3.  **Check Headers:** Ensure the 'Header Row' number matches where your column titles are.
     4.  **Select Keys:** Once uploaded, select the column(s) that identify a unique row (e.g., Employee ID).
     5.  **Run:** Click the green button to generate the report.
+    6.  **Download Report:** After analysis, download the detailed Excel report.
     """)
 
 st.markdown("Upload two files below to generate a detailed comparison report.")

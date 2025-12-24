@@ -43,15 +43,20 @@ st.markdown("""
         background-color: #1e7e34 !important;
     }
 
-    /* 2. CHECKBOX STYLING (Override default Red to Excel Green) */
-    /* Target the checkbox container when checked */
+    /* 2. CHECKBOX STYLING (Force Excel Green over default Red) */
+    /* Target the checked state container */
     div[data-testid="stCheckbox"] label span[data-baseweb="checkbox"] div[aria-checked="true"] {
         background-color: #217346 !important;
         border-color: #217346 !important;
     }
-    /* Target the focus ring/hover state */
+    /* Target the hover state of the checkbox */
     div[data-testid="stCheckbox"] label:hover span[data-baseweb="checkbox"] div {
         border-color: #217346 !important;
+    }
+    /* Target the focus/active state */
+    div[data-testid="stCheckbox"] label span[data-baseweb="checkbox"] div:focus {
+        border-color: #217346 !important;
+        box-shadow: 0 0 0 3px rgba(33, 115, 70, 0.2) !important;
     }
 
     /* 3. BLUE MULTISELECT TAGS */
@@ -408,10 +413,11 @@ if src_file and tgt_file:
 
                             if best_alt_col:
                                 reco_text_excel = f"Removing the column '{best_alt_col}' from your Key selection would increase the Match Percentage from {match_pct:.2f}% to {best_alt_pct:.2f}%."
+                                # FIX: Improved HTML structure for alignment
                                 reco_msg = f"""<div class="report-row" style="background-color: #d4edda; border-bottom: 1px solid #c3e6cb;">
 <div class="report-key" style="color: #155724; background-color: #d4edda;">💡 Recommendation</div>
 <div class="report-val" style="color: #155724;">
-{reco_text_excel.replace(best_alt_col, f"<b>{best_alt_col}</b>").replace(str(round(best_alt_pct,2)), f"<strong>{best_alt_pct:.2f}</strong>")}
+Removing the column <b>'{best_alt_col}'</b> from your Key selection would increase the Match Percentage from {match_pct:.2f}% to <strong>{best_alt_pct:.2f}%</strong>.
 </div></div>"""
 
                         if match_pct == 100:

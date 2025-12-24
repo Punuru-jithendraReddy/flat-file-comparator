@@ -408,6 +408,7 @@ if src_file and tgt_file:
                         mismatch_html = ""
                         reco_msg = ""
                         reco_text_excel = None # Variable to store plain text recommendation for Excel
+                        mismatch_df = pd.DataFrame() # Initialize empty
                         
                         if match_pct < 100 and len(selected_src) > 1:
                             best_alt_pct = 0
@@ -565,6 +566,18 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
 
                         row = write_section(ws_sum, row, "Matching Configuration")
                         row = write_pair(ws_sum, row, "Key Columns Selected", ", ".join(selected_src))
+                        
+                        # --- ADDED: Display Mismatched and Value Columns in Excel Summary ---
+                        # 1. Mismatched Columns
+                        mm_cols_list = mismatch_df['Column'].tolist() if not mismatch_df.empty else ["None"]
+                        row = write_pair(ws_sum, row, "Mismatched Columns", ", ".join(mm_cols_list))
+                        
+                        # 2. Value Columns (Columns compared but not keys)
+                        val_cols_list = [c for c in common_cols_list if c not in selected_src]
+                        val_cols_str = ", ".join(val_cols_list) if val_cols_list else "All columns used as Keys"
+                        row = write_pair(ws_sum, row, "Checked Value Columns", val_cols_str)
+                        # ------------------------------------------------------------------
+
                         row = write_pair(ws_sum, row, "Case Insensitive Data", str(opt_case_data))
                         row = write_pair(ws_sum, row, "Trim Whitespace", str(opt_trim))
                         row += 1

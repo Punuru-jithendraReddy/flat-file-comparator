@@ -181,7 +181,7 @@ def get_diagnosis(pct):
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.image("https://img.icons8.com/color/48/compare.png", width=70)
+    st.image("https://github.com/Punuru-jithendraReddy/flat-file-comparator/blob/main/Logo_J2.png", width=70)
     st.title("Settings")
     
     with st.expander("🛠 Options", expanded=True):

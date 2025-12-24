@@ -184,14 +184,14 @@ with st.sidebar:
 
 st.title("📂 Flat File Comparison Tool")
 
-# Added Expander for Overall Instructions
 with st.expander("ℹ️ Click here for Instructions"):
     st.markdown("""
     **How to use this tool:**
     1.  **Upload Files:** Drag and drop your **Source** (Old) and **Target** (New) files.
-    2.  **Check Headers:** Ensure the 'Header Row' number matches where your column titles are (usually row 1).
-    3.  **Select Keys:** Once uploaded, select the column(s) that identify a unique row (e.g., Employee ID).
-    4.  **Run:** Click the green button to generate the report.
+    2.  **Select Sheet:** If your Excel file has multiple sheets, a dropdown will appear.
+    3.  **Check Headers:** Ensure the 'Header Row' number matches where your column titles are.
+    4.  **Select Keys:** Once uploaded, select the column(s) that identify a unique row (e.g., Employee ID).
+    5.  **Run:** Click the green button to generate the report.
     """)
 
 st.markdown("Upload two files below to generate a detailed comparison report.")
@@ -205,24 +205,29 @@ with col_input1:
         "Upload Source", 
         type=["xlsx", "xls", "csv"], 
         key="src",
-        help="ℹ️ Drag and drop your Original / Baseline file here. This is the file you are comparing FROM."
+        help="ℹ️ Drag and drop your Original / Baseline file here."
     )
     
-    # Sheet Selection Logic for Source
+    # Dynamic Sheet Selection Logic
     src_sheet_name = 0
     if src_file:
         file_ext = src_file.name.split('.')[-1].lower()
         if file_ext in ['xlsx', 'xls']:
             try:
-                # Read sheet names without loading full file
-                src_excel_file = pd.ExcelFile(src_file)
-                sheet_names = src_excel_file.sheet_names
-                src_file.seek(0) # Reset pointer
+                # Read specific sheet names efficiently
+                xl_file = pd.ExcelFile(src_file)
+                sheet_names = xl_file.sheet_names
+                src_file.seek(0) # IMPORTANT: Reset pointer after reading names
                 
                 if len(sheet_names) > 1:
-                    src_sheet_name = st.selectbox("Select Source Sheet", options=sheet_names, key="src_sheet_sel")
+                    src_sheet_name = st.selectbox(
+                        "📄 Select Source Sheet", 
+                        options=sheet_names, 
+                        key="src_sheet_select"
+                    )
                 else:
                     src_sheet_name = sheet_names[0]
+                    st.info(f"Using sheet: {src_sheet_name}")
             except Exception as e:
                 st.error(f"Error reading sheets: {e}")
 
@@ -231,7 +236,7 @@ with col_input1:
         min_value=1, 
         value=1, 
         key="h1",
-        help="ℹ️ The row number in Excel/CSV where the column names are located. Default is 1."
+        help="Row number for column headers."
     ) - 1
 
 # --- TARGET FILE INPUT ---
@@ -241,23 +246,28 @@ with col_input2:
         "Upload Target", 
         type=["xlsx", "xls", "csv"], 
         key="tgt",
-        help="ℹ️ Drag and drop your New / Updated file here. This is the file you are comparing TO."
+        help="ℹ️ Drag and drop your New / Updated file here."
     )
-
-    # Sheet Selection Logic for Target
+    
+    # Dynamic Sheet Selection Logic
     tgt_sheet_name = 0
     if tgt_file:
         file_ext = tgt_file.name.split('.')[-1].lower()
         if file_ext in ['xlsx', 'xls']:
             try:
-                tgt_excel_file = pd.ExcelFile(tgt_file)
-                sheet_names = tgt_excel_file.sheet_names
-                tgt_file.seek(0) # Reset pointer
+                xl_file = pd.ExcelFile(tgt_file)
+                sheet_names = xl_file.sheet_names
+                tgt_file.seek(0) # IMPORTANT: Reset pointer after reading names
                 
                 if len(sheet_names) > 1:
-                    tgt_sheet_name = st.selectbox("Select Target Sheet", options=sheet_names, key="tgt_sheet_sel")
+                    tgt_sheet_name = st.selectbox(
+                        "📄 Select Target Sheet", 
+                        options=sheet_names, 
+                        key="tgt_sheet_select"
+                    )
                 else:
                     tgt_sheet_name = sheet_names[0]
+                    st.info(f"Using sheet: {tgt_sheet_name}")
             except Exception as e:
                 st.error(f"Error reading sheets: {e}")
 
@@ -266,13 +276,14 @@ with col_input2:
         min_value=1, 
         value=1, 
         key="h2",
-        help="ℹ️ The row number in Excel/CSV where the column names are located. Default is 1."
+        help="Row number for column headers."
     ) - 1
 
 # B. Execution
 if src_file and tgt_file:
     st.divider()
-    # Pass the selected sheet names here
+    
+    # Load DataFrames using selected sheets
     df1 = smart_read_file(src_file, src_header, src_sheet_name)
     df2 = smart_read_file(tgt_file, tgt_header, tgt_sheet_name)
 
@@ -308,7 +319,7 @@ if src_file and tgt_file:
                     "Select Key Columns (Unique Identifiers)", 
                     options=all_options,
                     default=all_options,
-                    help="ℹ️ IMPORTANT: Select the columns that make a row unique (e.g., 'Order ID' or 'Email'). These keys are used to match rows between the two files."
+                    help="ℹ️ IMPORTANT: Select the columns that make a row unique (e.g., 'Order ID' or 'Email')."
                 )
 
             with c_btn:
@@ -316,7 +327,7 @@ if src_file and tgt_file:
                 st.write("") 
                 run_btn = st.button(
                     "🚀 Run Comparison",
-                    help="ℹ️ Click to start the matching process. This might take a few seconds for large files."
+                    help="ℹ️ Click to start the matching process."
                 )
 
             if run_btn:
@@ -354,21 +365,14 @@ if src_file and tgt_file:
                         mismatch_html = ""
                         reco_msg = ""
                         
-                        # Check "What If" scenarios if match is not perfect
                         if match_pct < 100 and len(selected_src) > 1:
                             best_alt_pct = 0
                             best_alt_col = None
                             
-                            # Try removing 1 column at a time
                             for col_to_remove in selected_src:
                                 temp_keys = [k for k in selected_src if k != col_to_remove]
-                                # FIX: Use 'inner' join and count unique OID matches to prevent >100% (Cartesian product)
                                 temp_merged = pd.merge(df1_n, df2_n, on=temp_keys, how='inner')
-                                
-                                # Count unique source rows that found a match
                                 temp_match_count = temp_merged['_oid_src'].nunique()
-                                
-                                # Approximate union for speed (or use total rows)
                                 temp_union = total_src_rows + total_tgt_rows - temp_match_count
                                 temp_pct = (temp_match_count / temp_union * 100) if temp_union else 0
                                 
@@ -378,30 +382,24 @@ if src_file and tgt_file:
                                         best_alt_col = col_to_remove
 
                             if best_alt_col:
-                                diff = best_alt_pct - match_pct
-                                # FIX: No indentation in the string to prevent Markdown code-block interpretation
                                 reco_msg = f"""<div class="report-row" style="background-color: #d4edda; border-bottom: 1px solid #c3e6cb;">
 <div class="report-key" style="color: #155724; background-color: #d4edda;">💡 Recommendation</div>
 <div class="report-val" style="color: #155724;">
 Removing the column <b>'{best_alt_col}'</b> from your Key selection would increase the Match Percentage from {match_pct:.2f}% to <strong>{best_alt_pct:.2f}%</strong>.
 </div></div>"""
 
-                        # Generate Content based on scenario
                         if match_pct == 100:
                             mismatch_html = '<div class="report-row"><div class="report-key">Details</div><div class="report-val status-good">No value mismatches found.</div></div>'
-                        
                         elif match_pct == 0:
-                            # 0% MATCH: Show the recommendation OR Key Analysis
                             if reco_msg:
                                 mismatch_html = reco_msg
                             else:
-                                # Fallback to Key Value Sampling if no recommendation found
                                 mismatch_html = """
                                 <div class="report-row">
                                     <div class="report-key">Critical Mismatch Diagnosis</div>
                                     <div class="report-val" style="color:#d9534f">
                                         ⚠️ <strong>No rows matched.</strong><br>
-                                        See sample values below to spot formatting differences (e.g., '123' vs 'INV-123').
+                                        See sample values below to spot formatting differences.
                                     </div>
                                 </div>
                                 """
@@ -418,11 +416,7 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                                     </div>
                                     """
                         else:
-                            # PARTIAL MATCH: Show Recommendation OR Value Mismatches
-                            if reco_msg:
-                                mismatch_html = reco_msg
-                            
-                            # Also show the standard Mismatch Contributors table if we have matches
+                            if reco_msg: mismatch_html = reco_msg
                             value_cols = [c for c in common_cols_list if c not in selected_src]
                             if value_cols and not in_both_idxs.empty:
                                 idx_src = in_both_idxs['_oid_src'].astype(int)
@@ -449,42 +443,38 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                                 else:
                                     mismatch_html += '<div class="report-row"><div class="report-key">Details</div><div class="report-val status-good">No value mismatches found in matched rows.</div></div>'
 
-                        # --- DISPLAY ---
+                        # --- DISPLAY REPORT ---
                         st.success("✅ Analysis Complete")
                         
-                        # File Info
                         st.markdown(f"""
                         <div class="report-container">
                             <div class="report-header">File Information</div>
-                            <div class="report-row"><div class="report-key">Source File Name</div><div class="report-val">{src_file.name} (Sheet: {src_sheet_name})</div></div>
-                            <div class="report-row"><div class="report-key">Source Total Rows</div><div class="report-val">{total_src_rows:,}</div></div>
-                            <div class="report-row"><div class="report-key">Target File Name</div><div class="report-val">{tgt_file.name} (Sheet: {tgt_sheet_name})</div></div>
-                            <div class="report-row"><div class="report-key">Target Total Rows</div><div class="report-val">{total_tgt_rows:,}</div></div>
+                            <div class="report-row"><div class="report-key">Source File</div><div class="report-val">{src_file.name} (Sheet: {src_sheet_name})</div></div>
+                            <div class="report-row"><div class="report-key">Source Rows</div><div class="report-val">{total_src_rows:,}</div></div>
+                            <div class="report-row"><div class="report-key">Target File</div><div class="report-val">{tgt_file.name} (Sheet: {tgt_sheet_name})</div></div>
+                            <div class="report-row"><div class="report-key">Target Rows</div><div class="report-val">{total_tgt_rows:,}</div></div>
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Comparison Stats
                         st.markdown(f"""
                         <div class="report-container">
                             <div class="report-header">Comparison Statistics</div>
-                            <div class="report-row"><div class="report-key">Rows in BOTH Files (Match)</div><div class="report-val">{c_both:,}</div></div>
-                            <div class="report-row"><div class="report-key">Rows ONLY in Source</div><div class="report-val">{c_src:,} <span style="color:red; font-size:0.8em">(- Missing)</span></div></div>
-                            <div class="report-row"><div class="report-key">Rows ONLY in Target</div><div class="report-val">{c_tgt:,} <span style="color:green; font-size:0.8em">(+ New)</span></div></div>
                             <div class="report-row"><div class="report-key">Match Percentage</div><div class="report-val" style="font-weight:bold">{match_pct:.2f}%</div></div>
+                            <div class="report-row"><div class="report-key">Matched Rows</div><div class="report-val">{c_both:,}</div></div>
+                            <div class="report-row"><div class="report-key">Missing in Target</div><div class="report-val">{c_src:,}</div></div>
+                            <div class="report-row"><div class="report-key">New in Target</div><div class="report-val">{c_tgt:,}</div></div>
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Diagnosis
                         st.markdown(f"""
                         <div class="report-container">
-                            <div class="report-header">Mismatch Diagnosis (Ranked by Impact)</div>
+                            <div class="report-header">Mismatch Diagnosis</div>
                             <div class="report-row"><div class="report-key">Status</div><div class="report-val {diag_class}">{diagnosis}</div></div>
                             {mismatch_html}
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # --- EXCEL GENERATION (Standard) ---
-                        # (Prepare Data for Download)
+                        # --- EXCEL GENERATION ---
                         only_src = df1.loc[merged[merged['_merge']=='left_only']['_oid_src'].dropna()].reindex(columns=selected_src)
                         only_tgt = df2.loc[merged[merged['_merge']=='right_only']['_oid_tgt'].dropna()].reindex(columns=selected_tgt)
                         in_both  = df1.loc[in_both_idxs['_oid_src'].dropna()].reindex(columns=selected_src)
@@ -493,7 +483,6 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         wb = Workbook()
                         wb.remove(wb.active)
 
-                        # Excel Styles
                         header_font = Font(name='Calibri', size=11, bold=True, color="FFFFFF")
                         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
                         
@@ -508,46 +497,17 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                             ws.cell(r,2,v).alignment = Alignment(horizontal='left')
                             return r + 1
 
-                        # Sheet 1: Executive Summary
                         ws_sum = wb.create_sheet("Executive Summary")
-                        ws_sum.column_dimensions['A'].width = 35
-                        ws_sum.column_dimensions['B'].width = 80
-                        
+                        ws_sum.column_dimensions['A'].width = 35; ws_sum.column_dimensions['B'].width = 80
                         row = 1
                         row = write_section(ws_sum, row, "File Information")
-                        row = write_pair(ws_sum, row, "Source File Name", f"{src_file.name} (Sheet: {src_sheet_name})")
-                        row = write_pair(ws_sum, row, "Source Total Rows", f"{total_src_rows:,}")
-                        row = write_pair(ws_sum, row, "Target File Name", f"{tgt_file.name} (Sheet: {tgt_sheet_name})")
-                        row = write_pair(ws_sum, row, "Target Total Rows", f"{total_tgt_rows:,}")
+                        row = write_pair(ws_sum, row, "Source", f"{src_file.name} (Sheet: {src_sheet_name})")
+                        row = write_pair(ws_sum, row, "Target", f"{tgt_file.name} (Sheet: {tgt_sheet_name})")
                         row += 1
+                        row = write_section(ws_sum, row, "Stats")
+                        row = write_pair(ws_sum, row, "Matched", f"{c_both:,}")
+                        row = write_pair(ws_sum, row, "Match %", f"{match_pct:.2f}%")
 
-                        row = write_section(ws_sum, row, "Comparison Statistics")
-                        row = write_pair(ws_sum, row, "Rows in BOTH Files (Match)", f"{c_both:,}")
-                        row = write_pair(ws_sum, row, "Rows ONLY in Source", f"{c_src:,}")
-                        row = write_pair(ws_sum, row, "Rows ONLY in Target", f"{c_tgt:,}")
-                        row = write_pair(ws_sum, row, "Match Percentage", f"{match_pct:.2f}%")
-                        row += 1
-
-                        row = write_section(ws_sum, row, "Matching Configuration")
-                        row = write_pair(ws_sum, row, "Key Columns Selected", ", ".join(selected_src))
-                        row = write_pair(ws_sum, row, "Case Insensitive Data", str(opt_case_data))
-                        row = write_pair(ws_sum, row, "Trim Whitespace", str(opt_trim))
-                        row += 1
-
-                        row = write_section(ws_sum, row, "Mismatch Diagnosis (Ranked by Impact)")
-                        row = write_pair(ws_sum, row, "Status", diagnosis)
-                        
-                        if 'mismatch_df' in locals() and not mismatch_df.empty:
-                            row += 1
-                            ws_sum.cell(row, 1, "Column with Differences").font = Font(bold=True, color="4472C4")
-                            ws_sum.cell(row, 2, "Count of Rows").font = Font(bold=True, color="4472C4")
-                            row += 1
-                            for _, r in mismatch_df.iterrows():
-                                ws_sum.cell(row, 1, r['Column'])
-                                ws_sum.cell(row, 2, r['Mismatch Count'])
-                                row += 1
-
-                        # Detail Sheets
                         if gen_col_sheet:
                             ws = wb.create_sheet("Column Names")
                             ws.append(["Column Name", "In Source", "In Target"])
@@ -565,10 +525,8 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                             ws = wb.create_sheet("Unique Values")
                             col_idx = 1
                             for c in selected_src:
-                                s_v = set(df1_n[c].dropna()[df1_n[c]!=''])
-                                t_v = set(df2_n[c].dropna()[df2_n[c]!=''])
                                 ws.cell(1, col_idx, c).font = Font(bold=True)
-                                ws.cell(2, col_idx, "Only Source"); ws.cell(2, col_idx+1, "Only Target")
+                                s_v = set(df1_n[c].dropna()[df1_n[c]!='']); t_v = set(df2_n[c].dropna()[df2_n[c]!=''])
                                 for i, v in enumerate(sorted(s_v - t_v), 3): ws.cell(i, col_idx, v)
                                 for i, v in enumerate(sorted(t_v - s_v), 3): ws.cell(i, col_idx+1, v)
                                 col_idx += 3
@@ -580,7 +538,6 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                             for c in nums:
                                 tgt_c = src_to_tgt_map.get(c,c)
                                 ws.cell(1, col_idx, c).font = Font(bold=True)
-                                ws.cell(2, col_idx, "Stat"); ws.cell(2, col_idx+1, "Src"); ws.cell(2, col_idx+2, "Tgt")
                                 for i, s in enumerate(['count','sum','mean','min','max'], 3):
                                     ws.cell(i, col_idx, s)
                                     try: ws.cell(i, col_idx+1, getattr(df1[c], s)())

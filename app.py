@@ -22,38 +22,56 @@ st.set_page_config(
 # --- 2. CSS STYLING (Excel Replica Theme) ---
 st.markdown("""
 <style>
-    /* 1. GREEN BUTTON (Strict) */
-    div.stButton > button {
-        background-color: #28a745 !important; 
+    /* 1. GREEN BUTTONS (Run & Download) - Excel Green */
+    div.stButton > button, div.stDownloadButton > button {
+        background-color: #217346 !important; /* Excel Dark Green */
         color: white !important;
-        border-color: #28a745 !important;
+        border: 1px solid #1e6b41 !important;
         font-weight: bold !important;
         width: 100%;
         height: 50px;
         font-size: 18px !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
     }
-    div.stButton > button:hover {
-        background-color: #218838 !important;
-        border-color: #1e7e34 !important;
+    div.stButton > button:hover, div.stDownloadButton > button:hover {
+        background-color: #155724 !important; /* Darker Green on Hover */
+        border-color: #145523 !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    div.stButton > button:active, div.stDownloadButton > button:active {
+        background-color: #1e7e34 !important;
     }
 
-    /* 2. BLUE MULTISELECT TAGS */
+    /* 2. CHECKBOX STYLING (Override default Red to Excel Green) */
+    /* Target the checkbox container when checked */
+    div[data-testid="stCheckbox"] label span[data-baseweb="checkbox"] div[aria-checked="true"] {
+        background-color: #217346 !important;
+        border-color: #217346 !important;
+    }
+    /* Target the focus ring/hover state */
+    div[data-testid="stCheckbox"] label:hover span[data-baseweb="checkbox"] div {
+        border-color: #217346 !important;
+    }
+
+    /* 3. BLUE MULTISELECT TAGS */
     span[data-baseweb="tag"] {
         background-color: #4472C4 !important; /* Excel Blue */
         color: white !important;
     }
 
-    /* 3. REPORT DASHBOARD STYLES (HTML/CSS) */
+    /* 4. REPORT DASHBOARD STYLES (HTML/CSS) */
     .report-container {
         font-family: 'Calibri', sans-serif;
         border: 1px solid #dcdcdc;
         margin-bottom: 20px;
         background-color: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .report-header {
         background-color: #4472C4; /* Excel Blue Header */
         color: white;
-        padding: 8px 15px;
+        padding: 10px 15px;
         font-weight: bold;
         font-size: 16px;
         border-bottom: 1px solid #bbb;
@@ -67,18 +85,22 @@ st.markdown("""
     }
     .report-key {
         width: 30%;
-        background-color: #f2f2f2;
-        padding: 8px 15px;
+        background-color: #f8f9fa;
+        padding: 10px 15px;
         font-weight: 600;
-        color: #333;
+        color: #495057;
         border-right: 1px solid #eee;
+        display: flex;
+        align-items: center;
     }
     .report-val {
         width: 70%;
-        padding: 8px 15px;
-        color: #000;
+        padding: 10px 15px;
+        color: #212529;
+        display: flex;
+        align-items: center;
     }
-    .status-good { color: green; font-weight: bold; }
+    .status-good { color: #217346; font-weight: bold; }
     .status-bad { color: #d9534f; font-weight: bold; }
     .status-neutral { color: #f0ad4e; font-weight: bold; }
     
@@ -223,7 +245,8 @@ with col_input1:
                     src_sheet_name = st.selectbox(
                         "📄 Select Source Sheet", 
                         options=sheet_names, 
-                        key="src_sheet_select"
+                        key="src_sheet_select",
+                        help="ℹ️ Choose the specific sheet from your Excel file to analyze."
                     )
                 else:
                     src_sheet_name = sheet_names[0]
@@ -263,7 +286,8 @@ with col_input2:
                     tgt_sheet_name = st.selectbox(
                         "📄 Select Target Sheet", 
                         options=sheet_names, 
-                        key="tgt_sheet_select"
+                        key="tgt_sheet_select",
+                        help="ℹ️ Choose the specific sheet from your Excel file to analyze."
                     )
                 else:
                     tgt_sheet_name = sheet_names[0]
@@ -364,6 +388,7 @@ if src_file and tgt_file:
                         # --- SMART RECOVERY & MISMATCH DIAGNOSIS ---
                         mismatch_html = ""
                         reco_msg = ""
+                        reco_text_excel = None # Variable to store plain text recommendation for Excel
                         
                         if match_pct < 100 and len(selected_src) > 1:
                             best_alt_pct = 0
@@ -382,10 +407,11 @@ if src_file and tgt_file:
                                         best_alt_col = col_to_remove
 
                             if best_alt_col:
+                                reco_text_excel = f"Removing the column '{best_alt_col}' from your Key selection would increase the Match Percentage from {match_pct:.2f}% to {best_alt_pct:.2f}%."
                                 reco_msg = f"""<div class="report-row" style="background-color: #d4edda; border-bottom: 1px solid #c3e6cb;">
 <div class="report-key" style="color: #155724; background-color: #d4edda;">💡 Recommendation</div>
 <div class="report-val" style="color: #155724;">
-Removing the column <b>'{best_alt_col}'</b> from your Key selection would increase the Match Percentage from {match_pct:.2f}% to <strong>{best_alt_pct:.2f}%</strong>.
+{reco_text_excel.replace(best_alt_col, f"<b>{best_alt_col}</b>").replace(str(round(best_alt_pct,2)), f"<strong>{best_alt_pct:.2f}</strong>")}
 </div></div>"""
 
                         if match_pct == 100:
@@ -526,6 +552,10 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         row = write_section(ws_sum, row, "Mismatch Diagnosis (Ranked by Impact)")
                         row = write_pair(ws_sum, row, "Status", diagnosis)
                         
+                        # Add Recommendation if it exists (Updated for Excel output)
+                        if reco_text_excel:
+                            row = write_pair(ws_sum, row, "Recommendation", reco_text_excel)
+
                         if 'mismatch_df' in locals() and not mismatch_df.empty:
                             row += 1
                             ws_sum.cell(row, 1, "Column with Differences").font = Font(bold=True, color="4472C4")

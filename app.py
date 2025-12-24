@@ -148,7 +148,7 @@ def get_diagnosis(pct):
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/10891/10891404.png", width=70)
+    st.image("https://img.icons8.com/color/48/compare.png", width=70)
     st.title("Settings")
     
     with st.expander("🛠 Options", expanded=True):

@@ -1,9 +1,3 @@
-Understood. Since this is **already web-hosted on Streamlit Cloud**, the README should **not mention setup, installation, or local execution** and should read like a **production SaaS-style internal tool document**.
-
-Below is a **fully revised, professional README** aligned with that expectation.
-
----
-
 # Flat File Comparison Tool
 
 ## Overview

@@ -125,11 +125,11 @@ def normalize_for_comparison(series, is_case_insensitive_data, should_trim_white
         s = s.str.lower()
     return s
 
-def smart_read_file(file_obj, header_row):
+def smart_read_file(file_obj, header_row, sheet_name=0):
     file_ext = file_obj.name.split('.')[-1].lower()
     try:
         if file_ext in ['xlsx', 'xls']:
-            return pd.read_excel(file_obj, header=header_row)
+            return pd.read_excel(file_obj, header=header_row, sheet_name=sheet_name)
         elif file_ext == 'csv':
             file_obj.seek(0)
             try: return pd.read_csv(file_obj, encoding='utf-8-sig', header=header_row)
@@ -197,6 +197,8 @@ with st.expander("ℹ️ Click here for Instructions"):
 st.markdown("Upload two files below to generate a detailed comparison report.")
 
 col_input1, col_input2 = st.columns(2)
+
+# --- SOURCE FILE INPUT ---
 with col_input1:
     st.subheader("Source File")
     src_file = st.file_uploader(
@@ -205,6 +207,25 @@ with col_input1:
         key="src",
         help="ℹ️ Drag and drop your Original / Baseline file here. This is the file you are comparing FROM."
     )
+    
+    # Sheet Selection Logic for Source
+    src_sheet_name = 0
+    if src_file:
+        file_ext = src_file.name.split('.')[-1].lower()
+        if file_ext in ['xlsx', 'xls']:
+            try:
+                # Read sheet names without loading full file
+                src_excel_file = pd.ExcelFile(src_file)
+                sheet_names = src_excel_file.sheet_names
+                src_file.seek(0) # Reset pointer
+                
+                if len(sheet_names) > 1:
+                    src_sheet_name = st.selectbox("Select Source Sheet", options=sheet_names, key="src_sheet_sel")
+                else:
+                    src_sheet_name = sheet_names[0]
+            except Exception as e:
+                st.error(f"Error reading sheets: {e}")
+
     src_header = st.number_input(
         "Header Row (Source)", 
         min_value=1, 
@@ -213,6 +234,7 @@ with col_input1:
         help="ℹ️ The row number in Excel/CSV where the column names are located. Default is 1."
     ) - 1
 
+# --- TARGET FILE INPUT ---
 with col_input2:
     st.subheader("Target File")
     tgt_file = st.file_uploader(
@@ -221,6 +243,24 @@ with col_input2:
         key="tgt",
         help="ℹ️ Drag and drop your New / Updated file here. This is the file you are comparing TO."
     )
+
+    # Sheet Selection Logic for Target
+    tgt_sheet_name = 0
+    if tgt_file:
+        file_ext = tgt_file.name.split('.')[-1].lower()
+        if file_ext in ['xlsx', 'xls']:
+            try:
+                tgt_excel_file = pd.ExcelFile(tgt_file)
+                sheet_names = tgt_excel_file.sheet_names
+                tgt_file.seek(0) # Reset pointer
+                
+                if len(sheet_names) > 1:
+                    tgt_sheet_name = st.selectbox("Select Target Sheet", options=sheet_names, key="tgt_sheet_sel")
+                else:
+                    tgt_sheet_name = sheet_names[0]
+            except Exception as e:
+                st.error(f"Error reading sheets: {e}")
+
     tgt_header = st.number_input(
         "Header Row (Target)", 
         min_value=1, 
@@ -232,8 +272,9 @@ with col_input2:
 # B. Execution
 if src_file and tgt_file:
     st.divider()
-    df1 = smart_read_file(src_file, src_header)
-    df2 = smart_read_file(tgt_file, tgt_header)
+    # Pass the selected sheet names here
+    df1 = smart_read_file(src_file, src_header, src_sheet_name)
+    df2 = smart_read_file(tgt_file, tgt_header, tgt_sheet_name)
 
     if df1 is not None and df2 is not None:
         total_src_rows = len(df1)
@@ -415,9 +456,9 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         st.markdown(f"""
                         <div class="report-container">
                             <div class="report-header">File Information</div>
-                            <div class="report-row"><div class="report-key">Source File Name</div><div class="report-val">{src_file.name}</div></div>
+                            <div class="report-row"><div class="report-key">Source File Name</div><div class="report-val">{src_file.name} (Sheet: {src_sheet_name})</div></div>
                             <div class="report-row"><div class="report-key">Source Total Rows</div><div class="report-val">{total_src_rows:,}</div></div>
-                            <div class="report-row"><div class="report-key">Target File Name</div><div class="report-val">{tgt_file.name}</div></div>
+                            <div class="report-row"><div class="report-key">Target File Name</div><div class="report-val">{tgt_file.name} (Sheet: {tgt_sheet_name})</div></div>
                             <div class="report-row"><div class="report-key">Target Total Rows</div><div class="report-val">{total_tgt_rows:,}</div></div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -474,9 +515,9 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         
                         row = 1
                         row = write_section(ws_sum, row, "File Information")
-                        row = write_pair(ws_sum, row, "Source File Name", src_file.name)
+                        row = write_pair(ws_sum, row, "Source File Name", f"{src_file.name} (Sheet: {src_sheet_name})")
                         row = write_pair(ws_sum, row, "Source Total Rows", f"{total_src_rows:,}")
-                        row = write_pair(ws_sum, row, "Target File Name", tgt_file.name)
+                        row = write_pair(ws_sum, row, "Target File Name", f"{tgt_file.name} (Sheet: {tgt_sheet_name})")
                         row = write_pair(ws_sum, row, "Target Total Rows", f"{total_tgt_rows:,}")
                         row += 1
 

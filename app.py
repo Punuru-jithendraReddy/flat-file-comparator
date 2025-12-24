@@ -3,7 +3,7 @@ import pandas as pd
 from io import BytesIO
 import datetime
 import time
-import textwrap # Imported to fix indentation issues
+import textwrap
 
 # --- 1. CONFIGURATION & SETUP ---
 try:
@@ -152,15 +152,27 @@ with st.sidebar:
     st.title("Settings")
     
     with st.expander("🛠 Options", expanded=True):
-        opt_case_cols = st.checkbox("Case-Insensitive Cols", value=True)
-        opt_case_data = st.checkbox("Case-Insensitive Data", value=True)
-        opt_trim = st.checkbox("Trim Whitespace", value=True)
+        opt_case_cols = st.checkbox(
+            "Case-Insensitive Cols", 
+            value=True,
+            help="If checked, 'COLUMN_A' and 'column_a' will be treated as the same column."
+        )
+        opt_case_data = st.checkbox(
+            "Case-Insensitive Data", 
+            value=True,
+            help="If checked, 'Apple' and 'APPLE' will be considered a match."
+        )
+        opt_trim = st.checkbox(
+            "Trim Whitespace", 
+            value=True,
+            help="Removes leading/trailing spaces (e.g., '  ID-123 ' becomes 'ID-123')."
+        )
     
     with st.expander("📑 Excel Output", expanded=True):
-        gen_row_sheet = st.checkbox("Row Comparison", value=True)
-        gen_col_sheet = st.checkbox("Column Analysis", value=True)
-        gen_uniq_sheet = st.checkbox("Unique Values", value=True)
-        gen_stats_sheet = st.checkbox("Summary Stats", value=True)
+        gen_row_sheet = st.checkbox("Row Comparison", value=True, help="Creates a sheet showing which rows are missing or new.")
+        gen_col_sheet = st.checkbox("Column Analysis", value=True, help="Creates a sheet comparing column names.")
+        gen_uniq_sheet = st.checkbox("Unique Values", value=True, help="Creates a sheet listing unique values for your Key columns.")
+        gen_stats_sheet = st.checkbox("Summary Stats", value=True, help="Creates a sheet with Sum, Min, Max, and Count for numeric columns.")
 
     st.markdown("---")
     st.markdown("### 👨‍💻 Developer")
@@ -171,18 +183,50 @@ with st.sidebar:
 # --- 5. MAIN UI ---
 
 st.title("📂 Flat File Comparison Tool")
+
+# --- ADDED: General Instructions Expander ---
+with st.expander("ℹ️ How to use this tool (Click to expand)"):
+    st.markdown("""
+    1. **Upload Files:** Upload your Source (Original) and Target (New) files.
+    2. **Define Headers:** If your data doesn't start on row 1, adjust the Header Row number.
+    3. **Select Keys:** Choose the columns that uniquely identify a row (e.g., EmployeeID, InvoiceNo).
+    4. **Run:** Click 'Run Comparison' to see the difference report.
+    """)
+
 st.markdown("Upload two files below to generate a detailed comparison report.")
 
 col_input1, col_input2 = st.columns(2)
 with col_input1:
     st.subheader("Source File")
-    src_file = st.file_uploader("Upload Source", type=["xlsx", "xls", "csv"], key="src")
-    src_header = st.number_input("Header Row (Source)", min_value=1, value=1, key="h1") - 1
+    src_file = st.file_uploader(
+        "Upload Source", 
+        type=["xlsx", "xls", "csv"], 
+        key="src",
+        help="Upload the reference file (Baseline). Supported formats: Excel (.xlsx, .xls) and CSV."
+    )
+    src_header = st.number_input(
+        "Header Row (Source)", 
+        min_value=1, 
+        value=1, 
+        key="h1",
+        help="The row number where your column names are located. Usually 1."
+    ) - 1
 
 with col_input2:
     st.subheader("Target File")
-    tgt_file = st.file_uploader("Upload Target", type=["xlsx", "xls", "csv"], key="tgt")
-    tgt_header = st.number_input("Header Row (Target)", min_value=1, value=1, key="h2") - 1
+    tgt_file = st.file_uploader(
+        "Upload Target", 
+        type=["xlsx", "xls", "csv"], 
+        key="tgt",
+        help="Upload the file you want to compare against the Source."
+    )
+    tgt_header = st.number_input(
+        "Header Row (Target)", 
+        min_value=1, 
+        value=1, 
+        key="h2",
+        help="The row number where your column names are located in the target file."
+    ) - 1
 
 # B. Execution
 if src_file and tgt_file:
@@ -221,13 +265,17 @@ if src_file and tgt_file:
                 selected_src = st.multiselect(
                     "Select Key Columns (Unique Identifiers)", 
                     options=all_options,
-                    default=all_options
+                    default=all_options,
+                    help="Choose columns that combine to make a row unique (e.g., 'Order ID' or 'Email'). These are used to match rows between files."
                 )
 
             with c_btn:
                 st.write("") 
                 st.write("") 
-                run_btn = st.button("🚀 Run Comparison")
+                run_btn = st.button(
+                    "🚀 Run Comparison",
+                    help="Click to process files and generate the report. Only active after keys are selected."
+                )
 
             if run_btn:
                 if not selected_src:

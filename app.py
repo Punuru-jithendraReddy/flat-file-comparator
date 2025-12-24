@@ -155,24 +155,24 @@ with st.sidebar:
         opt_case_cols = st.checkbox(
             "Case-Insensitive Cols", 
             value=True,
-            help="If checked, 'COLUMN_A' and 'column_a' will be treated as the same column."
+            help="ℹ️ If selected, 'ColumnName' and 'columnname' will be matched as the same column."
         )
         opt_case_data = st.checkbox(
             "Case-Insensitive Data", 
             value=True,
-            help="If checked, 'Apple' and 'APPLE' will be considered a match."
+            help="ℹ️ If selected, text data like 'Apple' and 'apple' will be considered identical matches."
         )
         opt_trim = st.checkbox(
             "Trim Whitespace", 
             value=True,
-            help="Removes leading/trailing spaces (e.g., '  ID-123 ' becomes 'ID-123')."
+            help="ℹ️ If selected, extra spaces at the beginning or end of text (e.g., '  Data ') will be removed before comparing."
         )
     
     with st.expander("📑 Excel Output", expanded=True):
-        gen_row_sheet = st.checkbox("Row Comparison", value=True, help="Creates a sheet showing which rows are missing or new.")
-        gen_col_sheet = st.checkbox("Column Analysis", value=True, help="Creates a sheet comparing column names.")
-        gen_uniq_sheet = st.checkbox("Unique Values", value=True, help="Creates a sheet listing unique values for your Key columns.")
-        gen_stats_sheet = st.checkbox("Summary Stats", value=True, help="Creates a sheet with Sum, Min, Max, and Count for numeric columns.")
+        gen_row_sheet = st.checkbox("Row Comparison", value=True, help="ℹ️ Include a sheet showing exactly which rows are missing or added.")
+        gen_col_sheet = st.checkbox("Column Analysis", value=True, help="ℹ️ Include a sheet comparing the list of column headers.")
+        gen_uniq_sheet = st.checkbox("Unique Values", value=True, help="ℹ️ Include a sheet listing unique values found in your key columns.")
+        gen_stats_sheet = st.checkbox("Summary Stats", value=True, help="ℹ️ Include a sheet with Count, Sum, Min, and Max for numeric columns.")
 
     st.markdown("---")
     st.markdown("### 👨‍💻 Developer")
@@ -184,13 +184,14 @@ with st.sidebar:
 
 st.title("📂 Flat File Comparison Tool")
 
-# --- ADDED: General Instructions Expander ---
-with st.expander("ℹ️ How to use this tool (Click to expand)"):
+# Added Expander for Overall Instructions
+with st.expander("ℹ️ Click here for Instructions"):
     st.markdown("""
-    1. **Upload Files:** Upload your Source (Original) and Target (New) files.
-    2. **Define Headers:** If your data doesn't start on row 1, adjust the Header Row number.
-    3. **Select Keys:** Choose the columns that uniquely identify a row (e.g., EmployeeID, InvoiceNo).
-    4. **Run:** Click 'Run Comparison' to see the difference report.
+    **How to use this tool:**
+    1.  **Upload Files:** Drag and drop your **Source** (Old) and **Target** (New) files.
+    2.  **Check Headers:** Ensure the 'Header Row' number matches where your column titles are (usually row 1).
+    3.  **Select Keys:** Once uploaded, select the column(s) that identify a unique row (e.g., Employee ID).
+    4.  **Run:** Click the green button to generate the report.
     """)
 
 st.markdown("Upload two files below to generate a detailed comparison report.")
@@ -202,14 +203,14 @@ with col_input1:
         "Upload Source", 
         type=["xlsx", "xls", "csv"], 
         key="src",
-        help="Upload the reference file (Baseline). Supported formats: Excel (.xlsx, .xls) and CSV."
+        help="ℹ️ Drag and drop your Original / Baseline file here. This is the file you are comparing FROM."
     )
     src_header = st.number_input(
         "Header Row (Source)", 
         min_value=1, 
         value=1, 
         key="h1",
-        help="The row number where your column names are located. Usually 1."
+        help="ℹ️ The row number in Excel/CSV where the column names are located. Default is 1."
     ) - 1
 
 with col_input2:
@@ -218,14 +219,14 @@ with col_input2:
         "Upload Target", 
         type=["xlsx", "xls", "csv"], 
         key="tgt",
-        help="Upload the file you want to compare against the Source."
+        help="ℹ️ Drag and drop your New / Updated file here. This is the file you are comparing TO."
     )
     tgt_header = st.number_input(
         "Header Row (Target)", 
         min_value=1, 
         value=1, 
         key="h2",
-        help="The row number where your column names are located in the target file."
+        help="ℹ️ The row number in Excel/CSV where the column names are located. Default is 1."
     ) - 1
 
 # B. Execution
@@ -266,7 +267,7 @@ if src_file and tgt_file:
                     "Select Key Columns (Unique Identifiers)", 
                     options=all_options,
                     default=all_options,
-                    help="Choose columns that combine to make a row unique (e.g., 'Order ID' or 'Email'). These are used to match rows between files."
+                    help="ℹ️ IMPORTANT: Select the columns that make a row unique (e.g., 'Order ID' or 'Email'). These keys are used to match rows between the two files."
                 )
 
             with c_btn:
@@ -274,7 +275,7 @@ if src_file and tgt_file:
                 st.write("") 
                 run_btn = st.button(
                     "🚀 Run Comparison",
-                    help="Click to process files and generate the report. Only active after keys are selected."
+                    help="ℹ️ Click to start the matching process. This might take a few seconds for large files."
                 )
 
             if run_btn:

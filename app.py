@@ -15,7 +15,7 @@ except Exception:
 
 st.set_page_config(
     page_title="Flat File Comparison Tool", 
-    page_icon="📊",
+    page_icon="📂",
     layout="wide"
 )
 

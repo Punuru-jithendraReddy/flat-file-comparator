@@ -22,7 +22,7 @@ st.set_page_config(
 # --- 2. CSS STYLING (Excel Replica Theme) ---
 st.markdown("""
 <style>
-    /* 1. GREEN BUTTONS (Run & Download) - Excel Green */
+    /* 1. GREEN BUTTONS (Run & Download) */
     div.stButton > button, div.stDownloadButton > button {
         background-color: #217346 !important; /* Excel Dark Green */
         color: white !important;
@@ -35,7 +35,7 @@ st.markdown("""
         transition: all 0.2s ease;
     }
     div.stButton > button:hover, div.stDownloadButton > button:hover {
-        background-color: #155724 !important; /* Darker Green on Hover */
+        background-color: #155724 !important;
         border-color: #145523 !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -43,20 +43,23 @@ st.markdown("""
         background-color: #1e7e34 !important;
     }
 
-    /* 2. CHECKBOX STYLING (Force Excel Green over default Red) */
-    /* Target the checked state container */
-    div[data-testid="stCheckbox"] label span[data-baseweb="checkbox"] div[aria-checked="true"] {
+    /* 2. CHECKBOX STYLING (Aggressive Override to Green) */
+    /* The Box Itself when unchecked */
+    div[data-baseweb="checkbox"] > div {
+        border-color: #217346 !important;
+    }
+    /* The Box Itself when Checked */
+    div[data-baseweb="checkbox"] > div[aria-checked="true"] {
         background-color: #217346 !important;
         border-color: #217346 !important;
     }
-    /* Target the hover state of the checkbox */
-    div[data-testid="stCheckbox"] label:hover span[data-baseweb="checkbox"] div {
-        border-color: #217346 !important;
-    }
-    /* Target the focus/active state */
-    div[data-testid="stCheckbox"] label span[data-baseweb="checkbox"] div:focus {
-        border-color: #217346 !important;
+    /* The Focus Ring */
+    div[data-baseweb="checkbox"] > div:focus-within {
         box-shadow: 0 0 0 3px rgba(33, 115, 70, 0.2) !important;
+    }
+    /* Text Color next to checkbox */
+    label[data-baseweb="checkbox"] {
+        color: #333 !important;
     }
 
     /* 3. BLUE MULTISELECT TAGS */
@@ -65,7 +68,7 @@ st.markdown("""
         color: white !important;
     }
 
-    /* 4. REPORT DASHBOARD STYLES (HTML/CSS) */
+    /* 4. REPORT DASHBOARD STYLES */
     .report-container {
         font-family: 'Calibri', sans-serif;
         border: 1px solid #dcdcdc;
@@ -74,16 +77,20 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .report-header {
-        background-color: #4472C4; /* Excel Blue Header */
+        background-color: #4472C4;
         color: white;
         padding: 10px 15px;
         font-weight: bold;
         font-size: 16px;
         border-bottom: 1px solid #bbb;
     }
+    
+    /* ROW LAYOUT FIX */
     .report-row {
         display: flex;
         border-bottom: 1px solid #eee;
+        /* Align items to center vertically so key and value look balanced */
+        align-items: center; 
     }
     .report-row:last-child {
         border-bottom: none;
@@ -95,28 +102,35 @@ st.markdown("""
         font-weight: 600;
         color: #495057;
         border-right: 1px solid #eee;
+        /* Flex here allows icon + text to align nicely in the Key column */
         display: flex;
         align-items: center;
+        min-height: 40px; /* Ensure consistency */
     }
     .report-val {
         width: 70%;
         padding: 10px 15px;
         color: #212529;
-        display: flex;
-        align-items: center;
+        /* IMPORTANT FIX: Removed display:flex here. 
+           Block display allows text with <b> tags to flow naturally as a sentence. */
+        display: block; 
     }
+    
     .status-good { color: #217346; font-weight: bold; }
     .status-bad { color: #d9534f; font-weight: bold; }
     .status-neutral { color: #f0ad4e; font-weight: bold; }
     
-    /* RECO BOX */
-    .reco-box {
+    /* RECO BOX - Specific override for the recommendation row */
+    .reco-row {
         background-color: #d4edda;
+        border-bottom: 1px solid #c3e6cb;
+    }
+    .reco-key {
         color: #155724;
-        padding: 10px;
-        border-left: 5px solid #28a745;
-        margin: 10px;
-        font-weight: bold;
+        background-color: #d4edda;
+    }
+    .reco-val {
+        color: #155724;
     }
 
     /* FOOTER */
@@ -413,10 +427,10 @@ if src_file and tgt_file:
 
                             if best_alt_col:
                                 reco_text_excel = f"Removing the column '{best_alt_col}' from your Key selection would increase the Match Percentage from {match_pct:.2f}% to {best_alt_pct:.2f}%."
-                                # FIX: Improved HTML structure for alignment
-                                reco_msg = f"""<div class="report-row" style="background-color: #d4edda; border-bottom: 1px solid #c3e6cb;">
-<div class="report-key" style="color: #155724; background-color: #d4edda;">💡 Recommendation</div>
-<div class="report-val" style="color: #155724;">
+                                # FIX: Removed flexbox from inner HTML, using spans and natural flow
+                                reco_msg = f"""<div class="report-row reco-row">
+<div class="report-key reco-key">💡 Recommendation</div>
+<div class="report-val reco-val">
 Removing the column <b>'{best_alt_col}'</b> from your Key selection would increase the Match Percentage from {match_pct:.2f}% to <strong>{best_alt_pct:.2f}%</strong>.
 </div></div>"""
 

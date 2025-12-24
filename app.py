@@ -44,20 +44,16 @@ st.markdown("""
     }
 
     /* 2. CHECKBOX STYLING (Aggressive Override to Green) */
-    /* The Box Itself when unchecked */
     div[data-baseweb="checkbox"] > div {
         border-color: #217346 !important;
     }
-    /* The Box Itself when Checked */
     div[data-baseweb="checkbox"] > div[aria-checked="true"] {
         background-color: #217346 !important;
         border-color: #217346 !important;
     }
-    /* The Focus Ring */
     div[data-baseweb="checkbox"] > div:focus-within {
         box-shadow: 0 0 0 3px rgba(33, 115, 70, 0.2) !important;
     }
-    /* Text Color next to checkbox */
     label[data-baseweb="checkbox"] {
         color: #333 !important;
     }
@@ -89,7 +85,6 @@ st.markdown("""
     .report-row {
         display: flex;
         border-bottom: 1px solid #eee;
-        /* Align items to center vertically so key and value look balanced */
         align-items: center; 
     }
     .report-row:last-child {
@@ -102,17 +97,14 @@ st.markdown("""
         font-weight: 600;
         color: #495057;
         border-right: 1px solid #eee;
-        /* Flex here allows icon + text to align nicely in the Key column */
         display: flex;
         align-items: center;
-        min-height: 40px; /* Ensure consistency */
+        min-height: 40px; 
     }
     .report-val {
         width: 70%;
         padding: 10px 15px;
         color: #212529;
-        /* IMPORTANT FIX: Removed display:flex here. 
-           Block display allows text with <b> tags to flow naturally as a sentence. */
         display: block; 
     }
     
@@ -120,7 +112,7 @@ st.markdown("""
     .status-bad { color: #d9534f; font-weight: bold; }
     .status-neutral { color: #f0ad4e; font-weight: bold; }
     
-    /* RECO BOX - Specific override for the recommendation row */
+    /* RECO BOX */
     .reco-row {
         background-color: #d4edda;
         border-bottom: 1px solid #c3e6cb;
@@ -340,10 +332,19 @@ if src_file and tgt_file:
         common_cols_list = []
         src_to_tgt_map = {}
 
+        # Logic for mapping and finding common columns
         if opt_case_cols:
             src_map = {str(c).lower(): c for c in src_cols}
             tgt_map = {str(c).lower(): c for c in tgt_cols}
             common_lower = set(src_map.keys()) & set(tgt_map.keys())
+            
+            # For Schema Mismatch Calculation
+            src_only_keys = set(src_map.keys()) - set(tgt_map.keys())
+            tgt_only_keys = set(tgt_map.keys()) - set(src_map.keys())
+            
+            src_only_final = [f"{src_map[k]}_S" for k in src_only_keys]
+            tgt_only_final = [f"{tgt_map[k]}_T" for k in tgt_only_keys]
+            
             for k in common_lower:
                 common_cols_list.append(src_map[k])
                 src_to_tgt_map[src_map[k]] = tgt_map[k]
@@ -351,6 +352,10 @@ if src_file and tgt_file:
             common = set(src_cols) & set(tgt_cols)
             common_cols_list = list(common)
             src_to_tgt_map = {c: c for c in common}
+            
+            # For Schema Mismatch Calculation
+            src_only_final = [f"{c}_S" for c in src_cols if c not in tgt_cols]
+            tgt_only_final = [f"{c}_T" for c in tgt_cols if c not in src_cols]
 
         if not common_cols_list:
             st.error("❌ No common columns found.")
@@ -407,8 +412,8 @@ if src_file and tgt_file:
                         # --- SMART RECOVERY & MISMATCH DIAGNOSIS ---
                         mismatch_html = ""
                         reco_msg = ""
-                        reco_text_excel = None # Variable to store plain text recommendation for Excel
-                        mismatch_df = pd.DataFrame() # Initialize empty
+                        reco_text_excel = None 
+                        mismatch_df = pd.DataFrame() 
                         
                         if match_pct < 100 and len(selected_src) > 1:
                             best_alt_pct = 0
@@ -428,7 +433,6 @@ if src_file and tgt_file:
 
                             if best_alt_col:
                                 reco_text_excel = f"Removing the column '{best_alt_col}' from your Key selection would increase the Match Percentage from {match_pct:.2f}% to {best_alt_pct:.2f}%."
-                                # FIX: Removed flexbox from inner HTML, using spans and natural flow
                                 reco_msg = f"""<div class="report-row reco-row">
 <div class="report-key reco-key">💡 Recommendation</div>
 <div class="report-val reco-val">
@@ -567,15 +571,16 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         row = write_section(ws_sum, row, "Matching Configuration")
                         row = write_pair(ws_sum, row, "Key Columns Selected", ", ".join(selected_src))
                         
-                        # --- ADDED: Display Mismatched and Value Columns in Excel Summary ---
-                        # 1. Mismatched Columns
-                        mm_cols_list = mismatch_df['Column'].tolist() if not mismatch_df.empty else ["None"]
-                        row = write_pair(ws_sum, row, "Mismatched Columns", ", ".join(mm_cols_list))
+                        # --- ADDED: Display Schema Mismatches and Value Comparison Columns ---
+                        # 1. Schema Mismatches (Columns missing in one file)
+                        schema_diff_list = sorted(src_only_final + tgt_only_final)
+                        schema_diff_str = ", ".join(schema_diff_list) if schema_diff_list else "None"
+                        row = write_pair(ws_sum, row, "Schema Mismatches (Missing Columns)", schema_diff_str)
                         
-                        # 2. Value Columns (Columns compared but not keys)
+                        # 2. Value Comparison Columns (Common columns checked for differences)
                         val_cols_list = [c for c in common_cols_list if c not in selected_src]
                         val_cols_str = ", ".join(val_cols_list) if val_cols_list else "All columns used as Keys"
-                        row = write_pair(ws_sum, row, "Checked Value Columns", val_cols_str)
+                        row = write_pair(ws_sum, row, "Value Comparison Columns", val_cols_str)
                         # ------------------------------------------------------------------
 
                         row = write_pair(ws_sum, row, "Case Insensitive Data", str(opt_case_data))
@@ -585,13 +590,13 @@ Removing the column <b>'{best_alt_col}'</b> from your Key selection would increa
                         row = write_section(ws_sum, row, "Mismatch Diagnosis (Ranked by Impact)")
                         row = write_pair(ws_sum, row, "Status", diagnosis)
                         
-                        # Add Recommendation if it exists (Updated for Excel output)
+                        # Add Recommendation if it exists
                         if reco_text_excel:
                             row = write_pair(ws_sum, row, "Recommendation", reco_text_excel)
 
                         if 'mismatch_df' in locals() and not mismatch_df.empty:
                             row += 1
-                            ws_sum.cell(row, 1, "Column with Differences").font = Font(bold=True, color="4472C4")
+                            ws_sum.cell(row, 1, "Columns with Value Mismatches").font = Font(bold=True, color="4472C4")
                             ws_sum.cell(row, 2, "Count of Rows").font = Font(bold=True, color="4472C4")
                             row += 1
                             for _, r in mismatch_df.iterrows():
